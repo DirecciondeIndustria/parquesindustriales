@@ -2,6 +2,7 @@ export interface Expediente {
   id: string;
   numero: number;
   anio: number;
+  sigla: string | null;
   tipo_tramite_id: string | null;
   empresa_id: string | null;
   parcela_id: string | null;
