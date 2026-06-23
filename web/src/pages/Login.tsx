@@ -27,7 +27,7 @@ export default function Login() {
         className="relative w-full max-w-sm glass rounded-3xl shadow-2xl p-8 space-y-5 ring-1 ring-white/40 animate-scale">
         <div className="text-center">
           <div className="w-20 h-20 mx-auto rounded-2xl grid place-items-center shadow-lg mb-4 overflow-hidden" style={{ background: '#fff' }}>
-            <img src="/logo.png" alt="Logo Dirección de Industria" className="w-16 h-16 object-contain" />
+            <img src="/logo-silueta.png" alt="Logo Dirección de Industria" className="w-16 h-16 object-contain" />
           </div>
           <h1 className="text-2xl font-bold text-gradient">SIGPIP</h1>
           <p className="text-sm text-slate-500 mt-1">Sistema Integral de Gestión de<br />Parques Industriales · Chubut</p>

@@ -37,7 +37,7 @@ export default function Layout() {
         {/* Encabezado con logo */}
         <div className="px-5 py-5 border-b border-white/10 flex items-center gap-3">
           <div className="w-11 h-11 rounded-xl bg-white/95 grid place-items-center shadow-lg shrink-0 overflow-hidden">
-            <img src="/logo.png" alt="Logo Dirección de Industria" className="w-9 h-9 object-contain" />
+            <img src="/logo-silueta.png" alt="Logo Dirección de Industria" className="w-9 h-9 object-contain" />
           </div>
           <div className="leading-tight">
             <div className="text-lg font-bold tracking-wide">SIGPIP</div>
