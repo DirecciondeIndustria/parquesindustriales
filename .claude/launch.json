@@ -1,0 +1,17 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "acta-inspeccion",
+      "runtimeExecutable": "python",
+      "runtimeArgs": ["-m", "http.server", "3479"],
+      "port": 3479
+    },
+    {
+      "name": "sigpip-web",
+      "runtimeExecutable": "C:\\Program Files\\nodejs\\npm.cmd",
+      "runtimeArgs": ["--prefix", "web", "run", "dev"],
+      "port": 5173
+    }
+  ]
+}

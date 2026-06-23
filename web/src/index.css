@@ -1,0 +1,123 @@
+@import "tailwindcss";
+@import url('https://fonts.googleapis.com/css2?family=Fira+Sans:wght@300;400;500;600;700&display=swap');
+
+:root {
+  /* Paleta tomada del logo: amarillo → naranja → rojo, con teal como acento mínimo */
+  --brand: #e2581f;          /* naranja principal */
+  --brand-dark: #b8431d;
+  --brand-light: #f97316;
+  --accent: #f9b414;         /* amarillo */
+  --teal: #2e6e87;           /* el "poco azul" del logo */
+  --brand-grad: linear-gradient(135deg, #e2581f 0%, #f59e0b 100%);
+  --sidebar-grad: linear-gradient(180deg, #9a3412 0%, #c2410c 55%, #e2581f 100%);
+  --chart-track: #eef2f7;
+}
+
+html, body, #root { height: 100%; }
+
+body {
+  margin: 0;
+  font-family: 'Fira Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  color: #0f172a;
+  background:
+    radial-gradient(1200px 600px at 100% -10%, rgba(249, 115, 22, 0.07), transparent 60%),
+    radial-gradient(1000px 500px at -10% 110%, rgba(249, 180, 20, 0.06), transparent 55%),
+    #f4f1ec;
+  -webkit-font-smoothing: antialiased;
+  transition: background-color .3s ease, color .3s ease;
+}
+
+/* ════════════════ DARK MODE ════════════════ */
+.dark {
+  --chart-track: #334155;
+  color-scheme: dark;
+}
+.dark body {
+  color: #e2e8f0;
+  background:
+    radial-gradient(1200px 600px at 100% -10%, rgba(249, 115, 22, 0.10), transparent 60%),
+    radial-gradient(1000px 500px at -10% 110%, rgba(249, 180, 20, 0.06), transparent 55%),
+    #0b1220;
+}
+/* Superficies, texto y bordes (cubre todas las páginas sin editarlas) */
+.dark .bg-white { background-color: #16202e !important; }
+.dark .bg-slate-50 { background-color: #0f1825 !important; }
+.dark .bg-slate-100 { background-color: #1e293b !important; }
+.dark .text-slate-800 { color: #f1f5f9 !important; }
+.dark .text-slate-700 { color: #e2e8f0 !important; }
+.dark .text-slate-600 { color: #cbd5e1 !important; }
+.dark .text-slate-500 { color: #94a3b8 !important; }
+.dark .text-slate-400 { color: #64748b !important; }
+.dark .border-slate-100, .dark .border-slate-200, .dark .border-slate-300 { border-color: #2a3852 !important; }
+.dark .ring-slate-200 { --tw-ring-color: #2a3852 !important; }
+.dark .divide-slate-100 > :not([hidden]) ~ :not([hidden]) { border-color: #233044 !important; }
+.dark input, .dark select, .dark textarea { color: #e2e8f0; }
+.dark input::placeholder, .dark textarea::placeholder { color: #64748b; }
+.dark .glass { background: rgba(15, 23, 42, 0.72); border-color: rgba(148, 163, 184, 0.15) !important; }
+.dark main table thead th { background: linear-gradient(180deg, #16202e, #0f1825); color: #94a3b8; }
+.dark main table tbody tr:hover { background-color: #1d2a3d !important; }
+.dark .bg-white.rounded-xl, .dark .bg-white.rounded-2xl, .dark .card-elev {
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 12px 30px -16px rgba(0, 0, 0, 0.7);
+}
+.dark .bg-red-50 { background-color: rgba(220, 38, 38, 0.12) !important; }
+.dark .hover\:bg-red-50:hover { background-color: rgba(220, 38, 38, 0.15) !important; }
+.dark .hover\:bg-slate-50:hover, .dark .hover\:bg-slate-100:hover { background-color: #1d2a3d !important; }
+
+/* ── Scrollbar ── */
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 8px; border: 2px solid transparent; background-clip: content-box; }
+::-webkit-scrollbar-thumb:hover { background: #94a3b8; background-clip: content-box; }
+
+/* ── Foco accesible global ── */
+:focus-visible { outline: 2px solid var(--brand-light); outline-offset: 2px; border-radius: 6px; }
+
+/* ── Utilidades de profundidad ── */
+.glass {
+  background: rgba(255, 255, 255, 0.7);
+  backdrop-filter: blur(12px) saturate(140%);
+  -webkit-backdrop-filter: blur(12px) saturate(140%);
+}
+.card-elev {
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04), 0 8px 24px -12px rgba(15, 23, 42, 0.18);
+  transition: box-shadow .25s ease, transform .25s ease;
+}
+.hover-lift { transition: transform .25s ease, box-shadow .25s ease; }
+.hover-lift:hover { transform: translateY(-3px); box-shadow: 0 12px 30px -10px rgba(15, 76, 129, 0.28); }
+.gradient-brand { background: var(--brand-grad); }
+.text-gradient {
+  background: var(--brand-grad);
+  -webkit-background-clip: text; background-clip: text; color: transparent;
+}
+
+/* ── Animaciones de entrada ── */
+@keyframes fadeUp { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+@keyframes scaleIn { from { opacity: 0; transform: scale(.96); } to { opacity: 1; transform: scale(1); } }
+.animate-in { animation: fadeUp .45s cubic-bezier(.16,1,.3,1) both; }
+.animate-fade { animation: fadeIn .4s ease both; }
+.animate-scale { animation: scaleIn .25s cubic-bezier(.16,1,.3,1) both; }
+
+/* ── Elevación global de tarjetas (todas las páginas) ── */
+main .bg-white.rounded-xl, main .bg-white.rounded-2xl {
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04), 0 10px 26px -16px rgba(15, 23, 42, 0.20);
+}
+
+/* ── Mejoras globales de tablas (aplican a todas las páginas) ── */
+main table { border-collapse: separate; border-spacing: 0; }
+main table thead th {
+  text-transform: uppercase; letter-spacing: .04em; font-size: 11px;
+  background: linear-gradient(180deg, #f8fafc, #eef2f7);
+}
+main table tbody tr { transition: background-color .18s ease, box-shadow .18s ease; }
+main table tbody tr:hover { background-color: #f0f6fc !important; }
+
+/* ── Botones / clickeables ── */
+button:not(:disabled), a, [role="button"], input[type="checkbox"], select, label:has(input[type="checkbox"]) { cursor: pointer; }
+button:disabled { cursor: not-allowed; }
+
+/* ── Reduced motion ── */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: .001ms !important; transition-duration: .001ms !important; }
+  .hover-lift:hover { transform: none; }
+}
