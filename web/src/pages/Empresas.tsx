@@ -2,6 +2,7 @@ import { useState, type FormEvent } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
 import { usePermisos } from '../lib/permisos';
+import { adminUsuarios } from '../lib/adminApi';
 import { Boton, Modal, Campo, inputCls, EncabezadoPagina } from '../components/ui';
 
 interface Empresa {
@@ -29,6 +30,8 @@ export default function Empresas() {
   const [form, setForm] = useState(vacio);
   const [busca, setBusca] = useState('');
 
+  const [acceso, setAcceso] = useState<{ empresa: Empresa; email: string; password: string } | null>(null);
+
   const { data: empresas = [], isLoading } = useQuery({
     queryKey: ['empresas'],
     queryFn: async () => {
@@ -36,6 +39,25 @@ export default function Empresas() {
       if (error) throw error;
       return data as Empresa[];
     },
+  });
+  const { data: accesos = [] } = useQuery({
+    enabled: esAdmin,
+    queryKey: ['empresa-accesos'],
+    queryFn: async () => {
+      const { data, error } = await supabase.from('empresa_accesos').select('empresa_id, user_id, email, activo').eq('activo', true);
+      if (error) throw error;
+      return data as { empresa_id: string; user_id: string; email: string | null; activo: boolean }[];
+    },
+  });
+  const accesoDe = (empresaId: string) => accesos.find((a) => a.empresa_id === empresaId);
+
+  const crearAcceso = useMutation({
+    mutationFn: (v: { empresa_id: string; email: string; password: string }) => adminUsuarios({ action: 'crear_acceso_empresa', ...v }),
+    onSuccess: () => { setAcceso(null); qc.invalidateQueries({ queryKey: ['empresa-accesos'] }); },
+  });
+  const revocarAcceso = useMutation({
+    mutationFn: (user_id: string) => adminUsuarios({ action: 'revocar_acceso_empresa', user_id }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['empresa-accesos'] }),
   });
 
   const filtradas = empresas.filter((e) =>
@@ -105,13 +127,14 @@ export default function Empresas() {
               <th className="px-4 py-3 font-medium">CUIT</th>
               <th className="px-4 py-3 font-medium">Actividad</th>
               <th className="px-4 py-3 font-medium">Estado</th>
+              {esAdmin && <th className="px-4 py-3 font-medium">Portal</th>}
               {puedeEditar && <th className="px-4 py-3" />}
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
-            {isLoading && <tr><td colSpan={5} className="px-4 py-6 text-center text-slate-400">Cargando…</td></tr>}
+            {isLoading && <tr><td colSpan={6} className="px-4 py-6 text-center text-slate-400">Cargando…</td></tr>}
             {!isLoading && filtradas.length === 0 && (
-              <tr><td colSpan={5} className="px-4 py-6 text-center text-slate-400">Sin empresas.</td></tr>
+              <tr><td colSpan={6} className="px-4 py-6 text-center text-slate-400">Sin empresas.</td></tr>
             )}
             {filtradas.map((e) => (
               <tr key={e.id} className="hover:bg-slate-50">
@@ -119,6 +142,18 @@ export default function Empresas() {
                 <td className="px-4 py-3 text-slate-600">{e.cuit ?? '—'}</td>
                 <td className="px-4 py-3 text-slate-600">{e.actividad ?? '—'}</td>
                 <td className="px-4 py-3 capitalize text-slate-600">{e.estado}</td>
+                {esAdmin && (
+                  <td className="px-4 py-3 whitespace-nowrap">
+                    {accesoDe(e.id)
+                      ? <span className="inline-flex items-center gap-2">
+                          <span className="text-xs px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700">Activo</span>
+                          <button onClick={() => { if (confirm(`¿Revocar el acceso al portal de "${e.razon_social}"?`)) revocarAcceso.mutate(accesoDe(e.id)!.user_id); }}
+                            className="text-xs text-red-600 hover:underline">Revocar</button>
+                        </span>
+                      : <button onClick={() => setAcceso({ empresa: e, email: e.email ?? '', password: '' })}
+                          className="text-xs text-[var(--brand)] hover:underline">Dar acceso</button>}
+                  </td>
+                )}
                 {puedeEditar && (
                   <td className="px-4 py-3 text-right whitespace-nowrap">
                     <button onClick={() => abrirEditar(e)} className="text-[var(--brand)] hover:underline mr-3">Editar</button>
@@ -185,6 +220,27 @@ export default function Empresas() {
             </Boton>
           </div>
         </form>
+      </Modal>
+
+      {/* Modal: dar acceso al portal de la empresa */}
+      <Modal titulo="Dar acceso al portal" abierto={!!acceso} onCerrar={() => setAcceso(null)}>
+        {acceso && (
+          <form onSubmit={(ev: FormEvent) => { ev.preventDefault(); if (acceso.email && acceso.password.length >= 6) crearAcceso.mutate({ empresa_id: acceso.empresa.id, email: acceso.email, password: acceso.password }); }} className="space-y-4">
+            <p className="text-sm text-slate-600">Cuenta de <strong>solo lectura</strong> para que <strong>{acceso.empresa.razon_social}</strong> vea el estado de sus expedientes. Usá el correo que la empresa declaró.</p>
+            <Campo label="Email declarado por la empresa">
+              <input className={inputCls} type="email" required value={acceso.email} onChange={(e) => setAcceso({ ...acceso, email: e.target.value })} />
+            </Campo>
+            <Campo label="Contraseña inicial (mín. 6)">
+              <input className={inputCls} required minLength={6} value={acceso.password} onChange={(e) => setAcceso({ ...acceso, password: e.target.value })} />
+            </Campo>
+            <p className="text-xs text-slate-500">La empresa podrá cambiar esta contraseña al ingresar. No tendrá acceso a datos internos ni a otras empresas.</p>
+            {crearAcceso.isError && <p className="text-sm text-red-600">{(crearAcceso.error as Error).message}</p>}
+            <div className="flex justify-end gap-2 pt-2">
+              <Boton type="button" variante="secundario" onClick={() => setAcceso(null)}>Cancelar</Boton>
+              <Boton type="submit" disabled={crearAcceso.isPending || !acceso.email || acceso.password.length < 6}>{crearAcceso.isPending ? 'Creando…' : 'Crear acceso'}</Boton>
+            </div>
+          </form>
+        )}
       </Modal>
     </div>
   );

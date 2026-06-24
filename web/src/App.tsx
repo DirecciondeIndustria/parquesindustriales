@@ -18,16 +18,34 @@ import Alertas from './pages/Alertas';
 import Auditoria from './pages/Auditoria';
 import Usuarios from './pages/Usuarios';
 import MiCuenta from './pages/MiCuenta';
+import Portal from './pages/Portal';
 import Placeholder from './pages/Placeholder';
 
 export default function App() {
-  const { session, cargando } = useAuth();
+  const { session, perfil, empresaId, cargando, salir } = useAuth();
 
   if (cargando) {
     return <div className="min-h-full grid place-items-center text-slate-500">Cargando…</div>;
   }
 
   if (!session) return <Login />;
+
+  // Cuenta de empresa (portal externo de solo lectura).
+  if (!perfil && empresaId) return <Portal />;
+
+  // Sesión sin perfil interno ni acceso de empresa: cuenta sin permisos.
+  if (!perfil) {
+    return (
+      <div className="min-h-full grid place-items-center p-4 text-center">
+        <div className="bg-white rounded-2xl shadow-sm p-8 max-w-sm">
+          <div className="text-3xl mb-2">🔒</div>
+          <h1 className="font-semibold text-slate-800 mb-1">Tu cuenta no tiene accesos asignados</h1>
+          <p className="text-sm text-slate-500 mb-4">Comunicate con la Dirección de Industria para que te habiliten.</p>
+          <button onClick={salir} className="text-[var(--brand)] hover:underline text-sm">Cerrar sesión</button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <BrowserRouter>

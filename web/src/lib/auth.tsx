@@ -4,7 +4,8 @@ import { supabase, type Usuario } from './supabase';
 
 interface AuthState {
   session: Session | null;
-  perfil: Usuario | null;
+  perfil: Usuario | null;          // personal interno (null si es cuenta de empresa)
+  empresaId: string | null;        // empresa de la cuenta externa (null si es interna)
   cargando: boolean;
   salir: () => Promise<void>;
 }
@@ -14,28 +15,42 @@ const Ctx = createContext<AuthState | undefined>(undefined);
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [perfil, setPerfil] = useState<Usuario | null>(null);
+  const [empresaId, setEmpresaId] = useState<string | null>(null);
   const [cargando, setCargando] = useState(true);
 
-  async function cargarPerfil(userId: string | undefined) {
-    if (!userId) { setPerfil(null); return; }
-    const { data } = await supabase
+  async function cargarContexto(userId: string | undefined) {
+    if (!userId) { setPerfil(null); setEmpresaId(null); return; }
+    const { data: u } = await supabase
       .from('usuarios')
       .select('id, nombre, email, rol, activo')
       .eq('id', userId)
       .maybeSingle();
-    setPerfil(data as Usuario | null);
+    setPerfil(u as Usuario | null);
+
+    // Si no es personal interno, ver si es una cuenta de empresa (portal externo).
+    if (!u) {
+      const { data: acc } = await supabase
+        .from('empresa_accesos')
+        .select('empresa_id')
+        .eq('user_id', userId)
+        .eq('activo', true)
+        .maybeSingle();
+      setEmpresaId((acc?.empresa_id as string) ?? null);
+    } else {
+      setEmpresaId(null);
+    }
   }
 
   useEffect(() => {
     supabase.auth.getSession().then(async ({ data }) => {
       setSession(data.session);
-      await cargarPerfil(data.session?.user.id);
+      await cargarContexto(data.session?.user.id);
       setCargando(false);
     });
 
     const { data: sub } = supabase.auth.onAuthStateChange(async (_e, s) => {
       setSession(s);
-      await cargarPerfil(s?.user.id);
+      await cargarContexto(s?.user.id);
     });
     return () => sub.subscription.unsubscribe();
   }, []);
@@ -43,7 +58,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const salir = async () => { await supabase.auth.signOut(); };
 
   return (
-    <Ctx.Provider value={{ session, perfil, cargando, salir }}>
+    <Ctx.Provider value={{ session, perfil, empresaId, cargando, salir }}>
       {children}
     </Ctx.Provider>
   );

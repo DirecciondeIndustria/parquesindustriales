@@ -40,6 +40,7 @@ export default function ExpedienteDetalle() {
   const [repetir, setRepetir] = useState<{ sub: SubTramite; etapaDestino: string } | null>(null);
   const [fojaEdit, setFojaEdit] = useState<{ sub: SubTramite; desde: string; hasta: string } | null>(null);
   const [moverModal, setMoverModal] = useState<{ aUsuario: string; nota: string } | null>(null);
+  const [notaModal, setNotaModal] = useState<{ numero_nota: string; asunto: string } | null>(null);
 
   const { data: exp, isLoading } = useQuery({
     queryKey: ['expediente', id],
@@ -246,6 +247,16 @@ export default function ExpedienteDetalle() {
     onSuccess: () => { setMensaje(''); refrescaTodo(); },
     onError: (e: unknown) => setMensaje(traducirError(e)),
   });
+  const registrarNota = useMutation({
+    mutationFn: async (n: { numero_nota: string; asunto: string }) => {
+      const { error } = await supabase.from('notas_empresa').insert({
+        empresa_id: exp!.empresa_id, expediente_id: id, numero_nota: n.numero_nota, asunto: n.asunto,
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => { setNotaModal(null); setMensaje(''); },
+    onError: (e: unknown) => setMensaje(traducirError(e)),
+  });
 
   if (isLoading || !exp) return <div className="text-slate-400">Cargando…</div>;
 
@@ -304,6 +315,11 @@ export default function ExpedienteDetalle() {
             onClick={() => exportarHojaRuta(exp, etapas, subtramites, { tipo, empresa, parcela })}>
             📄 Exportar hoja de ruta (PDF)
           </Boton>
+          {puedeEditar && exp.empresa_id && (
+            <Boton variante="secundario" onClick={() => { setMensaje(''); setNotaModal({ numero_nota: '', asunto: '' }); }}>
+              📬 Registrar nota a la empresa
+            </Boton>
+          )}
         </div>
 
         {/* Estado de avance del hito en curso */}
@@ -547,6 +563,26 @@ export default function ExpedienteDetalle() {
             <div className="flex justify-end gap-2 pt-2">
               <Boton type="button" variante="secundario" onClick={() => setRepetir(null)}>Cancelar</Boton>
               <Boton type="submit" disabled={repetirSub.isPending || !repetir.etapaDestino}>{repetirSub.isPending ? 'Agregando…' : 'Agregar'}</Boton>
+            </div>
+          </form>
+        )}
+      </Modal>
+
+      {/* Modal: registrar nota a la empresa (aparece en el portal) */}
+      <Modal titulo="Registrar nota a la empresa" abierto={!!notaModal} onCerrar={() => setNotaModal(null)}>
+        {notaModal && (
+          <form onSubmit={(e: FormEvent) => { e.preventDefault(); if (notaModal.numero_nota.trim() && notaModal.asunto.trim()) registrarNota.mutate(notaModal); }} className="space-y-4">
+            <p className="text-sm text-slate-600">Queda visible en el portal de <strong>{empresa ?? 'la empresa'}</strong> como aviso. Sirve para que esté pendiente de la nota oficial (ej. solicitud de documentación).</p>
+            <Campo label="N° de nota">
+              <input className={inputCls} required value={notaModal.numero_nota} onChange={(e) => setNotaModal({ ...notaModal, numero_nota: e.target.value })} />
+            </Campo>
+            <Campo label="Asunto">
+              <input className={inputCls} required placeholder="Ej: Solicitud de documentación complementaria" value={notaModal.asunto} onChange={(e) => setNotaModal({ ...notaModal, asunto: e.target.value })} />
+            </Campo>
+            {registrarNota.isError && <p className="text-sm text-red-600">No se pudo registrar.</p>}
+            <div className="flex justify-end gap-2 pt-2">
+              <Boton type="button" variante="secundario" onClick={() => setNotaModal(null)}>Cancelar</Boton>
+              <Boton type="submit" disabled={registrarNota.isPending}>{registrarNota.isPending ? 'Registrando…' : 'Registrar'}</Boton>
             </div>
           </form>
         )}

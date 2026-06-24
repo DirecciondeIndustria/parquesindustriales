@@ -90,6 +90,34 @@ Deno.serve(async (req) => {
       return json({ ok: true });
     }
 
+    // ── Portal de empresas (cuentas externas de solo lectura) ──
+    if (action === 'crear_acceso_empresa') {
+      const { empresa_id, email, password } = body;
+      if (!empresa_id || !email || !password) return json({ error: 'Datos incompletos.' }, 400);
+
+      const { data: created, error: cErr } = await admin.auth.admin.createUser({
+        email, password, email_confirm: true,
+      });
+      if (cErr || !created.user) return json({ error: cErr?.message ?? 'No se pudo crear el acceso.' }, 400);
+
+      // OJO: NO se inserta en `usuarios` (no es personal interno).
+      const { error: aErr } = await admin.from('empresa_accesos')
+        .insert({ empresa_id, user_id: created.user.id, email, activo: true });
+      if (aErr) {
+        await admin.auth.admin.deleteUser(created.user.id);
+        return json({ error: aErr.message }, 400);
+      }
+      return json({ ok: true, user_id: created.user.id });
+    }
+
+    if (action === 'revocar_acceso_empresa') {
+      const { user_id } = body;
+      if (!user_id) return json({ error: 'Datos incompletos.' }, 400);
+      await admin.from('empresa_accesos').update({ activo: false }).eq('user_id', user_id);
+      await admin.auth.admin.updateUserById(user_id, { ban_duration: '876000h' });
+      return json({ ok: true });
+    }
+
     return json({ error: 'Acción desconocida.' }, 400);
   } catch (e) {
     return json({ error: (e as Error).message }, 500);

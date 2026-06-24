@@ -2,6 +2,7 @@ import { useState, type FormEvent } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase, type Rol } from '../lib/supabase';
 import { usePermisos } from '../lib/permisos';
+import { adminUsuarios } from '../lib/adminApi';
 import { Boton, Modal, Campo, inputCls, EncabezadoPagina } from '../components/ui';
 
 interface UsuarioRow { id: string; nombre: string; email: string | null; rol: Rol; activo: boolean; }
@@ -15,19 +16,6 @@ export const ROLES: { valor: Rol; label: string }[] = [
   { valor: 'inspector', label: 'Inspector' },
   { valor: 'consulta', label: 'Consulta' },
 ];
-
-/** Llama a la Edge Function admin-usuarios con el token del admin. */
-async function adminUsuarios(payload: Record<string, unknown>) {
-  const { data, error } = await supabase.functions.invoke('admin-usuarios', { body: payload });
-  if (error) {
-    // El cuerpo de error de la función trae el detalle.
-    let msg = error.message;
-    try { const ctx = await (error as { context?: Response }).context?.json(); if (ctx?.error) msg = ctx.error; } catch { /* */ }
-    throw new Error(msg);
-  }
-  if (data?.error) throw new Error(data.error);
-  return data;
-}
 
 export default function Usuarios() {
   const qc = useQueryClient();
