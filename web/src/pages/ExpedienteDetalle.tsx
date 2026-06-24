@@ -191,6 +191,7 @@ export default function ExpedienteDetalle() {
       setMoverModal(null); setMensaje('');
       qc.invalidateQueries({ queryKey: ['custodia', id] });
       qc.invalidateQueries({ queryKey: ['expediente', id] });
+      qc.invalidateQueries({ queryKey: ['en-mi-poder'] });
     },
     onError: (e: unknown) => setMensaje(traducirError(e)),
   });

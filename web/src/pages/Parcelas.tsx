@@ -39,6 +39,7 @@ export default function Parcelas() {
   const [editId, setEditId] = useState<string | null>(null);
   const [form, setForm] = useState(vacio);
   const [filtroParque, setFiltroParque] = useState('');
+  const [busca, setBusca] = useState('');
 
   const { data: parques = [] } = useQuery({
     queryKey: ['parques'],
@@ -71,10 +72,13 @@ export default function Parcelas() {
   };
   const nombreEmpresa = (id: string | null) => empresas.find((e) => e.id === id)?.razon_social ?? '—';
 
-  const visibles = useMemo(
-    () => (filtroParque ? parcelas.filter((p) => p.parque_id === filtroParque) : parcelas),
-    [parcelas, filtroParque],
-  );
+  const visibles = useMemo(() => {
+    const q = busca.trim().toLowerCase();
+    return parcelas.filter((p) =>
+      (!filtroParque || p.parque_id === filtroParque) &&
+      (!q || [p.identificacion, nombreEmpresa(p.empresa_id)].join(' ').toLowerCase().includes(q)));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [parcelas, filtroParque, busca, empresas]);
 
   const guardar = useMutation({
     mutationFn: async () => {
@@ -130,6 +134,8 @@ export default function Parcelas() {
       />
 
       <div className="flex flex-wrap items-center gap-4 mb-4">
+        <input className={`${inputCls} max-w-xs`} placeholder="Buscar por parcela o empresa…"
+          value={busca} onChange={(e) => setBusca(e.target.value)} />
         <select className={`${inputCls} max-w-xs`} value={filtroParque} onChange={(e) => setFiltroParque(e.target.value)}>
           <option value="">Todos los parques</option>
           {parques.map((p) => <option key={p.id} value={p.id}>{p.nombre} ({p.localidad})</option>)}

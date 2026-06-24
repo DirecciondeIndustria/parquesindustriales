@@ -1,5 +1,7 @@
 import { useState } from 'react';
 import { NavLink, Outlet } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
+import { supabase } from '../lib/supabase';
 import { useAuth } from '../lib/auth';
 import { Icon } from './icons';
 import { ThemeToggle } from './ThemeToggle';
@@ -26,6 +28,20 @@ export default function Layout() {
   const [abierto, setAbierto] = useState(false);
 
   const iniciales = (perfil?.nombre ?? 'U').split(' ').map((p) => p[0]).slice(0, 2).join('').toUpperCase();
+
+  // Expedientes que el usuario tiene físicamente en su poder (custodia).
+  const { data: enMiPoder = [] } = useQuery({
+    enabled: !!perfil?.id,
+    queryKey: ['en-mi-poder', perfil?.id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('expedientes').select('id, numero, anio, sigla')
+        .eq('poseedor_actual', perfil!.id)
+        .order('anio', { ascending: false }).order('numero', { ascending: false });
+      if (error) throw error;
+      return data as { id: string; numero: number; anio: number; sigla: string | null }[];
+    },
+  });
 
   return (
     <div className="min-h-full flex">
@@ -69,6 +85,22 @@ export default function Layout() {
             </NavLink>
           ))}
         </nav>
+
+        {enMiPoder.length > 0 && (
+          <div className="px-3 py-3 border-t border-white/10 max-h-48 overflow-y-auto">
+            <div className="px-2 pb-2 text-[11px] uppercase tracking-wide text-white/50 flex items-center gap-1.5">
+              📂 Expedientes en mi poder <span className="text-white/40">({enMiPoder.length})</span>
+            </div>
+            <div className="space-y-0.5">
+              {enMiPoder.map((e) => (
+                <NavLink key={e.id} to={`/expedientes/${e.id}`} onClick={() => setAbierto(false)}
+                  className="block px-2 py-1.5 rounded-lg text-sm text-white/80 hover:text-white hover:bg-white/10 transition-colors">
+                  {e.sigla ? `${e.sigla} ` : ''}{e.numero}/{e.anio}
+                </NavLink>
+              ))}
+            </div>
+          </div>
+        )}
 
         <div className="px-4 py-3 border-t border-white/10 text-[11px] text-white/40">
           Dirección de Industria · Chubut

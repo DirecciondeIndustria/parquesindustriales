@@ -17,6 +17,7 @@ export default function Expedientes() {
   const { puedeEditar } = usePermisos();
   const [modal, setModal] = useState(false);
   const [modalSiglas, setModalSiglas] = useState(false);
+  const [busca, setBusca] = useState('');
   const anioActual = new Date().getFullYear();
   const [form, setForm] = useState({
     numero: '', anio: anioActual.toString(), sigla: '', numero_fichero: '', tipo_tramite_id: '', empresa_id: '',
@@ -67,6 +68,13 @@ export default function Expedientes() {
   const tipoNom = (id: string | null) => tipos.find((t) => t.id === id)?.nombre ?? '—';
   const empNom = (id: string | null) => empresas.find((e) => e.id === id)?.razon_social ?? '—';
   const siglaVigente = siglas.find((s) => s.vigente)?.sigla ?? '';
+
+  const q = busca.trim().toLowerCase();
+  const filtrados = q
+    ? expedientes.filter((e) =>
+        [`${e.sigla ?? ''} ${e.numero}/${e.anio}`, `${e.numero}`, empNom(e.empresa_id), tipoNom(e.tipo_tramite_id)]
+          .join(' ').toLowerCase().includes(q))
+    : expedientes;
 
   const crear = useMutation({
     mutationFn: async () => {
@@ -140,6 +148,11 @@ export default function Expedientes() {
         )}
       />
 
+      <input
+        className={`${inputCls} mb-4 max-w-sm`} placeholder="Buscar por N° de expediente o empresa…"
+        value={busca} onChange={(e) => setBusca(e.target.value)}
+      />
+
       <div className="bg-white rounded-xl shadow-sm overflow-x-auto">
         <table className="w-full text-sm">
           <thead className="bg-slate-50 text-slate-500 text-left">
@@ -154,10 +167,10 @@ export default function Expedientes() {
           </thead>
           <tbody className="divide-y divide-slate-100">
             {isLoading && <tr><td colSpan={6} className="px-4 py-6 text-center text-slate-400">Cargando…</td></tr>}
-            {!isLoading && expedientes.length === 0 && (
+            {!isLoading && filtrados.length === 0 && (
               <tr><td colSpan={6} className="px-4 py-6 text-center text-slate-400">Sin expedientes.</td></tr>
             )}
-            {expedientes.map((e) => {
+            {filtrados.map((e) => {
               const s = semaforo(e);
               return (
                 <tr key={e.id} className="hover:bg-slate-50 cursor-pointer" onClick={() => navigate(`/expedientes/${e.id}`)}>

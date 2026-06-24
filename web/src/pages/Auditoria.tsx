@@ -6,6 +6,7 @@ import { inputCls, EncabezadoPagina } from '../components/ui';
 
 interface Registro {
   id: number;
+  usuario_id: string | null;
   usuario_email: string | null;
   accion: string;
   tabla: string;
@@ -58,10 +59,20 @@ export default function Auditoria() {
       return data as Registro[];
     },
   });
+  const { data: usuarios = [] } = useQuery({
+    queryKey: ['usuarios-min'],
+    queryFn: async () => {
+      const { data, error } = await supabase.from('usuarios').select('id, nombre').order('nombre');
+      if (error) throw error;
+      return data as { id: string; nombre: string }[];
+    },
+  });
+  const usrNom = (r: Registro) => (r.usuario_id && usuarios.find((u) => u.id === r.usuario_id)?.nombre) || r.usuario_email || '—';
 
-  // Lista de usuarios (emails) para el filtro — solo admin.
-  const emails = Array.from(new Set(registros.map((r) => r.usuario_email).filter(Boolean))) as string[];
-  const visibles = filtroUsuario ? registros.filter((r) => r.usuario_email === filtroUsuario) : registros;
+  // Usuarios que aparecen en la auditoría, para el filtro (solo admin).
+  const idsConRegistros = Array.from(new Set(registros.map((r) => r.usuario_id).filter(Boolean))) as string[];
+  const usuariosFiltro = usuarios.filter((u) => idsConRegistros.includes(u.id));
+  const visibles = filtroUsuario ? registros.filter((r) => r.usuario_id === filtroUsuario) : registros;
 
   return (
     <div>
@@ -71,7 +82,7 @@ export default function Auditoria() {
         <div className="flex flex-wrap gap-3 mb-4">
           <select className={`${inputCls} max-w-xs`} value={filtroUsuario} onChange={(e) => setFiltroUsuario(e.target.value)}>
             <option value="">Todos los usuarios</option>
-            {emails.map((e) => <option key={e} value={e}>{e}</option>)}
+            {usuariosFiltro.map((u) => <option key={u.id} value={u.id}>{u.nombre}</option>)}
           </select>
         </div>
       )}
@@ -99,7 +110,7 @@ export default function Auditoria() {
                 <Fragment key={r.id}>
                   <tr className={`hover:bg-slate-50 ${abrible ? 'cursor-pointer' : ''}`} onClick={() => abrible && setAbierto(open ? null : r.id)}>
                     <td className="px-4 py-3 text-slate-600 whitespace-nowrap">{new Date(r.fecha).toLocaleString('es-AR')}</td>
-                    <td className="px-4 py-3 text-slate-700">{r.usuario_email ?? '—'}</td>
+                    <td className="px-4 py-3 text-slate-700">{usrNom(r)}</td>
                     <td className="px-4 py-3"><span className="font-medium" style={{ color: a.color }}>{a.label}</span></td>
                     <td className="px-4 py-3 text-slate-600">{TABLA[r.tabla] ?? r.tabla}</td>
                     <td className="px-4 py-3 text-slate-400 text-right">{abrible ? (open ? '▲' : '▼ ver') : ''}</td>

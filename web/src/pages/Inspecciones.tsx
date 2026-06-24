@@ -8,6 +8,7 @@ import { fmtFecha } from '../lib/fechas';
 
 interface Inspeccion {
   id: string;
+  expediente_id: string | null;
   parcela_id: string | null;
   empresa_id: string | null;
   fecha_programada: string | null;
@@ -18,9 +19,10 @@ interface Inspeccion {
 }
 interface Empresa { id: string; razon_social: string; }
 interface Parcela { id: string; identificacion: string; }
+interface ExpedienteMin { id: string; numero: number; anio: number; sigla: string | null; }
 
 const vacio = {
-  parcela_id: '', empresa_id: '', fecha_programada: '', fecha_realizada: '',
+  expediente_id: '', parcela_id: '', empresa_id: '', fecha_programada: '', fecha_realizada: '',
   estado: 'pendiente', inspector: '', observaciones: '',
 };
 
@@ -30,7 +32,15 @@ export default function Inspecciones() {
   const [modal, setModal] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
   const [form, setForm] = useState(vacio);
+  const [busca, setBusca] = useState('');
 
+  const { data: expedientes = [] } = useQuery({
+    queryKey: ['expedientes-min'],
+    queryFn: async () => {
+      const { data, error } = await supabase.from('expedientes').select('id, numero, anio, sigla').order('anio', { ascending: false }).order('numero', { ascending: false });
+      if (error) throw error; return data as ExpedienteMin[];
+    },
+  });
   const { data: empresas = [] } = useQuery({
     queryKey: ['empresas-min'],
     queryFn: async () => {
@@ -55,10 +65,22 @@ export default function Inspecciones() {
 
   const empNom = (id: string | null) => empresas.find((e) => e.id === id)?.razon_social ?? '—';
   const parNom = (id: string | null) => parcelas.find((p) => p.id === id)?.identificacion ?? '—';
+  const expNom = (id: string | null) => {
+    const e = expedientes.find((x) => x.id === id);
+    return e ? `${e.sigla ? e.sigla + ' ' : ''}${e.numero}/${e.anio}` : '—';
+  };
+
+  const q = busca.trim().toLowerCase();
+  const visibles = q
+    ? insp.filter((i) =>
+        [empNom(i.empresa_id), parNom(i.parcela_id), expNom(i.expediente_id), i.inspector ?? '']
+          .join(' ').toLowerCase().includes(q))
+    : insp;
 
   const guardar = useMutation({
     mutationFn: async () => {
       const payload = {
+        expediente_id: form.expediente_id || null,
         parcela_id: form.parcela_id || null,
         empresa_id: form.empresa_id || null,
         fecha_programada: form.fecha_programada || null,
@@ -83,7 +105,7 @@ export default function Inspecciones() {
   function abrirEditar(i: Inspeccion) {
     setEditId(i.id);
     setForm({
-      parcela_id: i.parcela_id ?? '', empresa_id: i.empresa_id ?? '',
+      expediente_id: i.expediente_id ?? '', parcela_id: i.parcela_id ?? '', empresa_id: i.empresa_id ?? '',
       fecha_programada: i.fecha_programada ?? '', fecha_realizada: i.fecha_realizada ?? '',
       estado: i.estado, inspector: i.inspector ?? '', observaciones: i.observaciones ?? '',
     });
@@ -99,12 +121,18 @@ export default function Inspecciones() {
 
       <p className="text-xs text-slate-400 mb-4">La carga detallada de actas (firmas, fotos, PDF) seguirá en la app de inspecciones; acá se gestiona la programación y el estado.</p>
 
+      <input
+        className={`${inputCls} mb-4 max-w-sm`} placeholder="Buscar por empresa, expediente, parcela o inspector…"
+        value={busca} onChange={(e) => setBusca(e.target.value)}
+      />
+
       <div className="bg-white rounded-xl shadow-sm overflow-x-auto">
         <table className="w-full text-sm">
           <thead className="bg-slate-50 text-slate-500 text-left">
             <tr>
               <th className="px-4 py-3 font-medium">Estado</th>
               <th className="px-4 py-3 font-medium">Empresa</th>
+              <th className="px-4 py-3 font-medium">Expediente</th>
               <th className="px-4 py-3 font-medium">Parcela</th>
               <th className="px-4 py-3 font-medium">Programada</th>
               <th className="px-4 py-3 font-medium">Realizada</th>
@@ -113,9 +141,9 @@ export default function Inspecciones() {
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
-            {isLoading && <tr><td colSpan={7} className="px-4 py-6 text-center text-slate-400">Cargando…</td></tr>}
-            {!isLoading && insp.length === 0 && <tr><td colSpan={7} className="px-4 py-6 text-center text-slate-400">Sin inspecciones.</td></tr>}
-            {insp.map((i) => {
+            {isLoading && <tr><td colSpan={8} className="px-4 py-6 text-center text-slate-400">Cargando…</td></tr>}
+            {!isLoading && visibles.length === 0 && <tr><td colSpan={8} className="px-4 py-6 text-center text-slate-400">Sin inspecciones.</td></tr>}
+            {visibles.map((i) => {
               const e = ESTADOS_INSPECCION[i.estado] ?? { label: i.estado, color: '#94a3b8' };
               return (
                 <tr key={i.id} className="hover:bg-slate-50">
@@ -125,6 +153,7 @@ export default function Inspecciones() {
                     </span>
                   </td>
                   <td className="px-4 py-3 text-slate-600">{empNom(i.empresa_id)}</td>
+                  <td className="px-4 py-3 text-slate-600">{expNom(i.expediente_id)}</td>
                   <td className="px-4 py-3 text-slate-600">{parNom(i.parcela_id)}</td>
                   <td className="px-4 py-3 text-slate-600">{fmtFecha(i.fecha_programada)}</td>
                   <td className="px-4 py-3 text-slate-600">{fmtFecha(i.fecha_realizada)}</td>
@@ -144,6 +173,12 @@ export default function Inspecciones() {
 
       <Modal titulo={editId ? 'Editar inspección' : 'Nueva inspección'} abierto={modal} onCerrar={cerrar}>
         <form onSubmit={onSubmit} className="space-y-4">
+          <Campo label="Expediente (opcional)">
+            <select className={inputCls} value={form.expediente_id} onChange={(e) => setForm({ ...form, expediente_id: e.target.value })}>
+              <option value="">Sin asociar</option>
+              {expedientes.map((x) => <option key={x.id} value={x.id}>{x.sigla ? x.sigla + ' ' : ''}{x.numero}/{x.anio}</option>)}
+            </select>
+          </Campo>
           <div className="grid grid-cols-2 gap-4">
             <Campo label="Empresa">
               <select className={inputCls} value={form.empresa_id} onChange={(e) => setForm({ ...form, empresa_id: e.target.value })}>
