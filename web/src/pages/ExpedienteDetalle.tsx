@@ -41,7 +41,7 @@ export default function ExpedienteDetalle() {
   const [repetir, setRepetir] = useState<{ sub: SubTramite; etapaDestino: string } | null>(null);
   const [fojaEdit, setFojaEdit] = useState<{ sub: SubTramite; desde: string; hasta: string } | null>(null);
   const [moverModal, setMoverModal] = useState<{ aUsuario: string; nota: string } | null>(null);
-  const [notaModal, setNotaModal] = useState<{ numero_nota: string; asunto: string } | null>(null);
+  const [notaModal, setNotaModal] = useState<{ numero_nota: string; asunto: string; archivo: File | null } | null>(null);
 
   const { data: exp, isLoading } = useQuery({
     queryKey: ['expediente', id],
@@ -156,6 +156,14 @@ export default function ExpedienteDetalle() {
       return data?.razon_social as string | undefined;
     },
   });
+  const { data: empresaNotif } = useQuery({
+    enabled: !!exp?.empresa_id,
+    queryKey: ['empresa-notif', exp?.empresa_id],
+    queryFn: async () => {
+      const { data } = await supabase.from('empresas').select('email, notif_email').eq('id', exp!.empresa_id!).maybeSingle();
+      return data as { email: string | null; notif_email: boolean } | null;
+    },
+  });
   const { data: parcela } = useQuery({
     enabled: !!exp?.parcela_id,
     queryKey: ['parcela', exp?.parcela_id],
@@ -249,9 +257,20 @@ export default function ExpedienteDetalle() {
     onError: (e: unknown) => setMensaje(traducirError(e)),
   });
   const registrarNota = useMutation({
-    mutationFn: async (n: { numero_nota: string; asunto: string }) => {
+    mutationFn: async (n: { numero_nota: string; asunto: string; archivo: File | null }) => {
+      const empId = exp!.empresa_id;
+      const etapaActual = etapas.find((e) => e.estado === 'en_curso');
+      let storage_path: string | null = null;
+      let nombre_archivo: string | null = null;
+      if (n.archivo && empId) {
+        const path = `${empId}/${Date.now()}-${n.archivo.name}`;
+        const up = await supabase.storage.from('notas').upload(path, n.archivo);
+        if (up.error) throw up.error;
+        storage_path = path; nombre_archivo = n.archivo.name;
+      }
       const { error } = await supabase.from('notas_empresa').insert({
-        empresa_id: exp!.empresa_id, expediente_id: id, numero_nota: n.numero_nota, asunto: n.asunto,
+        empresa_id: empId, expediente_id: id, expediente_etapa_id: etapaActual?.id ?? null,
+        numero_nota: n.numero_nota, asunto: n.asunto, storage_path, nombre_archivo,
       });
       if (error) throw error;
     },
@@ -317,7 +336,7 @@ export default function ExpedienteDetalle() {
             📄 Exportar hoja de ruta (PDF)
           </Boton>
           {puedeEditar && exp.empresa_id && (
-            <Boton variante="secundario" onClick={() => { setMensaje(''); setNotaModal({ numero_nota: '', asunto: '' }); }}>
+            <Boton variante="secundario" onClick={() => { setMensaje(''); setNotaModal({ numero_nota: '', asunto: '', archivo: null }); }}>
               📬 Registrar nota a la empresa
             </Boton>
           )}
@@ -582,12 +601,22 @@ export default function ExpedienteDetalle() {
       <Modal titulo="Registrar nota a la empresa" abierto={!!notaModal} onCerrar={() => setNotaModal(null)}>
         {notaModal && (
           <form onSubmit={(e: FormEvent) => { e.preventDefault(); if (notaModal.numero_nota.trim() && notaModal.asunto.trim()) registrarNota.mutate(notaModal); }} className="space-y-4">
-            <p className="text-sm text-slate-600">Queda visible en el portal de <strong>{empresa ?? 'la empresa'}</strong> como aviso. Sirve para que esté pendiente de la nota oficial (ej. solicitud de documentación).</p>
+            <p className="text-sm text-slate-600">Queda visible en el portal de <strong>{empresa ?? 'la empresa'}</strong>, colgada del <strong>hito en curso</strong>{actual ? <> («{actual.nombre}»)</> : null}. Sirve para que la empresa vea el aviso y los requisitos que se le piden.</p>
+            {empresaNotif && (
+              empresaNotif.notif_email
+                ? <p className="text-xs text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-lg p-2">La empresa optó por la vía digital{empresaNotif.email ? ` (${empresaNotif.email})` : ''}. Podés adjuntar el PDF de la nota.</p>
+                : <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg p-2">La empresa NO optó por la vía digital: la nota se entrega por vía postal/presencial. Igual podés registrarla como aviso.</p>
+            )}
             <Campo label="N° de nota">
               <input className={inputCls} required value={notaModal.numero_nota} onChange={(e) => setNotaModal({ ...notaModal, numero_nota: e.target.value })} />
             </Campo>
             <Campo label="Asunto">
               <input className={inputCls} required placeholder="Ej: Solicitud de documentación complementaria" value={notaModal.asunto} onChange={(e) => setNotaModal({ ...notaModal, asunto: e.target.value })} />
+            </Campo>
+            <Campo label="Adjuntar nota (PDF, opcional)">
+              <input className="text-sm file:mr-3 file:rounded-lg file:border-0 file:bg-[var(--brand)] file:text-white file:px-4 file:py-2"
+                type="file" accept="application/pdf,image/*"
+                onChange={(e) => setNotaModal({ ...notaModal, archivo: e.target.files?.[0] ?? null })} />
             </Campo>
             {registrarNota.isError && <p className="text-sm text-red-600">No se pudo registrar.</p>}
             <div className="flex justify-end gap-2 pt-2">

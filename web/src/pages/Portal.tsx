@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../lib/auth';
 import { Boton, Modal, Campo, inputCls } from '../components/ui';
@@ -7,7 +7,7 @@ import { Consultas } from '../components/Consultas';
 import { ESTADO_LABEL, fmtExp } from '../lib/expediente';
 
 interface PExp { id: string; numero: number; anio: number; sigla: string | null; estado: keyof typeof ESTADO_LABEL; etapa_actual: string | null; total_etapas: number; etapas_completadas: number; }
-interface PNota { id: string; expediente_id: string | null; numero_nota: string; asunto: string; fecha: string; }
+interface PNota { id: string; expediente_id: string | null; numero_nota: string; asunto: string; fecha: string; storage_path: string | null; nombre_archivo: string | null; }
 interface PMov { etapa_id: string; expediente_id: string; orden: number; nombre: string; estado: string; fecha_salida: string | null; }
 interface PReq { id: string; expediente_etapa_id: string; nombre: string; obligatorio: boolean; completado: boolean; }
 
@@ -16,14 +16,28 @@ export default function Portal() {
   const [verPass, setVerPass] = useState(false);
   const [abierto, setAbierto] = useState<string | null>(null);
 
+  const qc = useQueryClient();
   const { data: empresa } = useQuery({
     queryKey: ['portal-empresa'],
     queryFn: async () => {
       const { data, error } = await supabase.from('portal_empresa').select('*').maybeSingle();
       if (error) throw error;
-      return data as { id: string; razon_social: string } | null;
+      return data as { id: string; razon_social: string; email: string | null; notif_email: boolean } | null;
     },
   });
+
+  const setNotif = useMutation({
+    mutationFn: async (valor: boolean) => {
+      const { error } = await supabase.rpc('portal_set_notif_email', { p_valor: valor });
+      if (error) throw error;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['portal-empresa'] }),
+  });
+
+  async function descargarNota(path: string) {
+    const { data, error } = await supabase.storage.from('notas').createSignedUrl(path, 60);
+    if (!error && data) window.open(data.signedUrl, '_blank');
+  }
   const { data: expedientes = [], isLoading } = useQuery({
     queryKey: ['portal-expedientes'],
     queryFn: async () => {
@@ -84,7 +98,16 @@ export default function Portal() {
 
       <main className="max-w-4xl mx-auto px-4 py-6">
         <h1 className="text-2xl font-bold text-slate-800">{empresa?.razon_social ?? 'Mi empresa'}</h1>
-        <p className="text-slate-500 mb-6">Estado de sus expedientes en la Dirección de Industria. Información de referencia.</p>
+        <p className="text-slate-500 mb-4">Estado de sus expedientes en la Dirección de Industria. Información de referencia.</p>
+
+        {/* Opt-in de recepción digital de notas */}
+        {empresa && (
+          <label className="flex items-center gap-2 text-sm text-slate-700 bg-white rounded-xl px-3 py-2 mb-6 ring-1 ring-slate-200 w-fit">
+            <input type="checkbox" className="accent-[var(--brand)]" checked={empresa.notif_email} disabled={setNotif.isPending}
+              onChange={(e) => setNotif.mutate(e.target.checked)} />
+            Quiero recibir las notas por este medio digital {empresa.email ? `(${empresa.email})` : ''}
+          </label>
+        )}
 
         {/* Notas / solicitudes de documentación */}
         {notas.length > 0 && (
@@ -92,9 +115,14 @@ export default function Portal() {
             <h2 className="font-semibold text-amber-800 mb-2">📬 Notas / solicitudes</h2>
             <div className="space-y-2">
               {notas.map((n) => (
-                <div key={n.id} className="text-sm text-amber-900">
-                  <strong>Nota N° {n.numero_nota}</strong> — {n.asunto}
-                  <span className="text-amber-700"> · {new Date(n.fecha).toLocaleDateString('es-AR')}</span>
+                <div key={n.id} className="text-sm text-amber-900 flex items-center gap-2 flex-wrap">
+                  <span><strong>Nota N° {n.numero_nota}</strong> — {n.asunto}
+                    <span className="text-amber-700"> · {new Date(n.fecha).toLocaleDateString('es-AR')}</span></span>
+                  {n.storage_path && (
+                    <button onClick={() => descargarNota(n.storage_path!)} className="text-xs font-medium text-amber-800 underline hover:text-amber-900">
+                      ⬇ Descargar nota{n.nombre_archivo ? ` (${n.nombre_archivo})` : ''}
+                    </button>
+                  )}
                 </div>
               ))}
             </div>

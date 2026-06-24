@@ -15,11 +15,12 @@ interface Empresa {
   actividad: string | null;
   estado: string | null;
   fecha_radicacion: string | null;
+  notif_email: boolean | null;
 }
 
 const vacio = {
   razon_social: '', cuit: '', domicilio: '', telefono: '',
-  email: '', actividad: '', estado: 'activa', fecha_radicacion: '',
+  email: '', actividad: '', estado: 'activa', fecha_radicacion: '', notif_email: false,
 };
 
 export default function Empresas() {
@@ -75,6 +76,7 @@ export default function Empresas() {
         actividad: form.actividad || null,
         estado: form.estado,
         fecha_radicacion: form.fecha_radicacion || null,
+        notif_email: form.notif_email,
       };
       const q = editId
         ? supabase.from('empresas').update(payload).eq('id', editId)
@@ -99,7 +101,7 @@ export default function Empresas() {
     setForm({
       razon_social: e.razon_social, cuit: e.cuit ?? '', domicilio: e.domicilio ?? '',
       telefono: e.telefono ?? '', email: e.email ?? '', actividad: e.actividad ?? '',
-      estado: e.estado ?? 'activa', fecha_radicacion: e.fecha_radicacion ?? '',
+      estado: e.estado ?? 'activa', fecha_radicacion: e.fecha_radicacion ?? '', notif_email: !!e.notif_email,
     });
     setModal(true);
   }
@@ -212,6 +214,11 @@ export default function Empresas() {
                 onChange={(e) => setForm({ ...form, fecha_radicacion: e.target.value })} />
             </Campo>
           </div>
+          <label className="flex items-center gap-2 text-sm text-slate-700">
+            <input type="checkbox" className="accent-[var(--brand)]" checked={form.notif_email}
+              onChange={(e) => setForm({ ...form, notif_email: e.target.checked })} />
+            Recibe notas por la vía digital (portal). Requiere email declarado.
+          </label>
           {guardar.isError && <p className="text-sm text-red-600">No se pudo guardar.</p>}
           <div className="flex justify-end gap-2 pt-2">
             <Boton type="button" variante="secundario" onClick={cerrar}>Cancelar</Boton>
