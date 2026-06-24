@@ -12,6 +12,7 @@ export const MODULOS = [
   { to: '/empresas', label: 'Empresas', icon: 'empresas' },
   { to: '/parcelas', label: 'Parcelas', icon: 'parcelas' },
   { to: '/expedientes', label: 'Expedientes', icon: 'expedientes' },
+  { to: '/mis-expedientes', label: 'Mis expedientes', icon: 'archivo' },
   { to: '/flujos', label: 'Flujos de trámite', icon: 'flujos' },
   { to: '/documentos', label: 'Gestión documental', icon: 'documentos' },
   { to: '/inspecciones', label: 'Inspecciones', icon: 'inspecciones' },
@@ -88,9 +89,10 @@ export default function Layout() {
 
         {enMiPoder.length > 0 && (
           <div className="px-3 py-3 border-t border-white/10 max-h-48 overflow-y-auto">
-            <div className="px-2 pb-2 text-[11px] uppercase tracking-wide text-white/50 flex items-center gap-1.5">
+            <NavLink to="/mis-expedientes" onClick={() => setAbierto(false)}
+              className="px-2 pb-2 text-[11px] uppercase tracking-wide text-white/50 hover:text-white flex items-center gap-1.5">
               📂 Expedientes en mi poder <span className="text-white/40">({enMiPoder.length})</span>
-            </div>
+            </NavLink>
             <div className="space-y-0.5">
               {enMiPoder.map((e) => (
                 <NavLink key={e.id} to={`/expedientes/${e.id}`} onClick={() => setAbierto(false)}

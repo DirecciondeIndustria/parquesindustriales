@@ -7,6 +7,7 @@ import Parques from './pages/Parques';
 import Empresas from './pages/Empresas';
 import Parcelas from './pages/Parcelas';
 import Expedientes from './pages/Expedientes';
+import MisExpedientes from './pages/MisExpedientes';
 import ExpedienteDetalle from './pages/ExpedienteDetalle';
 import Flujos from './pages/Flujos';
 import Documentos from './pages/Documentos';
@@ -37,6 +38,7 @@ export default function App() {
           <Route path="empresas" element={<Empresas />} />
           <Route path="parcelas" element={<Parcelas />} />
           <Route path="expedientes" element={<Expedientes />} />
+          <Route path="mis-expedientes" element={<MisExpedientes />} />
           <Route path="expedientes/:id" element={<ExpedienteDetalle />} />
           <Route path="flujos" element={<Flujos />} />
           <Route path="documentos" element={<Documentos />} />
