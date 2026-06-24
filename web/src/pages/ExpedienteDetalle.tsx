@@ -4,6 +4,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
 import { usePermisos } from '../lib/permisos';
 import { Boton, Modal, Campo, inputCls } from '../components/ui';
+import { Consultas } from '../components/Consultas';
 import {
   semaforo, SEMAFORO_COLOR, ESTADO_LABEL, diasEnEtapa, fmtExp,
   type Expediente, type Etapa,
@@ -360,6 +361,15 @@ export default function ExpedienteDetalle() {
           </div>
         )}
       </div>
+
+      {/* Consultas de la empresa (canal de texto) */}
+      {exp.empresa_id && (
+        <div className="bg-white rounded-xl shadow-sm p-5 mb-6">
+          <h2 className="font-semibold text-slate-800 mb-1">Consultas de la empresa</h2>
+          <p className="text-xs text-slate-500 mb-3">Canal de texto con {empresa ?? 'la empresa'}. La documentación de respuesta la presenta por mesa de entrada, no por acá.</p>
+          <Consultas empresaId={exp.empresa_id} expedienteId={id} emisor="oficina" />
+        </div>
+      )}
 
       {/* Timeline */}
       <div className="bg-white rounded-xl shadow-sm p-5">

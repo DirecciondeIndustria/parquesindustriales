@@ -40,6 +40,27 @@ export default function Dashboard() {
     },
   });
 
+  // Consultas de empresas cuyo último mensaje es de la empresa (sin responder).
+  const { data: consultasPend = [] } = useQuery({
+    queryKey: ['consultas-pendientes'],
+    queryFn: async () => {
+      const { data, error } = await supabase.from('consultas')
+        .select('id, expediente_id, emisor, autor_nombre, mensaje, created_at')
+        .order('created_at', { ascending: false }).limit(300);
+      if (error) throw error;
+      const rows = (data ?? []) as { id: string; expediente_id: string | null; emisor: string; autor_nombre: string | null; mensaje: string; created_at: string }[];
+      const vistos = new Set<string>();
+      const pend: typeof rows = [];
+      for (const r of rows) {
+        const k = r.expediente_id ?? r.id;
+        if (vistos.has(k)) continue;       // solo el último mensaje de cada expediente
+        vistos.add(k);
+        if (r.emisor === 'empresa') pend.push(r);
+      }
+      return pend;
+    },
+  });
+
   const { data } = useQuery({
     queryKey: ['dashboard'],
     queryFn: async () => {
@@ -104,6 +125,22 @@ export default function Dashboard() {
             <div className="text-sm text-slate-500">Mesa de entrada te derivó documentación. Tocá para verla y marcarla recibida.</div>
           </div>
         </button>
+      )}
+
+      {/* Consultas de empresas sin responder */}
+      {consultasPend.length > 0 && (
+        <div className="bg-white rounded-2xl card-elev border-l-4 border-sky-500 p-4 mb-6">
+          <h2 className="font-semibold text-slate-800 mb-3 flex items-center gap-2">💬 Consultas de empresas sin responder <span className="text-xs font-normal text-slate-400">({consultasPend.length})</span></h2>
+          <div className="space-y-1">
+            {consultasPend.slice(0, 6).map((c) => (
+              <button key={c.id} onClick={() => c.expediente_id && navigate(`/expedientes/${c.expediente_id}`)}
+                className="w-full text-left flex items-start gap-2.5 text-sm hover:bg-slate-50 rounded-lg px-2.5 py-2 transition-colors">
+                <span className="text-sky-500 mt-0.5">💬</span>
+                <span className="text-slate-700"><strong>{c.autor_nombre ?? 'Empresa'}:</strong> {c.mensaje.slice(0, 90)}{c.mensaje.length > 90 ? '…' : ''}</span>
+              </button>
+            ))}
+          </div>
+        </div>
       )}
 
       {/* Franja de alertas críticas */}

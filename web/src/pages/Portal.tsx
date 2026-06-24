@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../lib/auth';
 import { Boton, Modal, Campo, inputCls } from '../components/ui';
+import { Consultas } from '../components/Consultas';
 import { ESTADO_LABEL, fmtExp } from '../lib/expediente';
 
 interface PExp { id: string; numero: number; anio: number; sigla: string | null; estado: keyof typeof ESTADO_LABEL; etapa_actual: string | null; total_etapas: number; etapas_completadas: number; }
@@ -141,6 +142,13 @@ export default function Portal() {
                           );
                         })}
                       </ol>
+
+                      {empresa && (
+                        <div className="mt-5 pt-4 border-t border-slate-100">
+                          <h3 className="font-semibold text-slate-800 mb-2">Consultas sobre este expediente</h3>
+                          <Consultas empresaId={empresa.id} expedienteId={e.id} emisor="empresa" autorNombre={empresa.razon_social} />
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
