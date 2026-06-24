@@ -8,7 +8,8 @@ import { ESTADO_LABEL, fmtExp } from '../lib/expediente';
 
 interface PExp { id: string; numero: number; anio: number; sigla: string | null; estado: keyof typeof ESTADO_LABEL; etapa_actual: string | null; total_etapas: number; etapas_completadas: number; }
 interface PNota { id: string; expediente_id: string | null; numero_nota: string; asunto: string; fecha: string; }
-interface PMov { expediente_id: string; orden: number; nombre: string; estado: string; fecha_salida: string | null; }
+interface PMov { etapa_id: string; expediente_id: string; orden: number; nombre: string; estado: string; fecha_salida: string | null; }
+interface PReq { id: string; expediente_etapa_id: string; nombre: string; obligatorio: boolean; completado: boolean; }
 
 export default function Portal() {
   const { salir } = useAuth();
@@ -47,8 +48,17 @@ export default function Portal() {
       return data as PMov[];
     },
   });
+  const { data: requisitos = [] } = useQuery({
+    queryKey: ['portal-requisitos'],
+    queryFn: async () => {
+      const { data, error } = await supabase.from('portal_requisitos').select('*').order('orden');
+      if (error) throw error;
+      return data as PReq[];
+    },
+  });
 
   const movsDe = (expId: string) => movimientos.filter((m) => m.expediente_id === expId);
+  const reqsDe = (etapaId: string) => requisitos.filter((r) => r.expediente_etapa_id === etapaId);
   const notasDe = (expId: string) => notas.filter((n) => n.expediente_id === expId);
 
   return (
@@ -133,11 +143,24 @@ export default function Portal() {
                           return (
                             <li key={m.orden} className="ml-5 pb-4 last:pb-0">
                               <span className="absolute -left-[7px] w-3.5 h-3.5 rounded-full border-2 border-white" style={{ background: color }} />
-                              <div className="text-sm text-slate-700">{m.nombre}</div>
+                              <div className="text-sm font-medium text-slate-700">{m.nombre}</div>
                               <div className="text-xs text-slate-400">
                                 {m.estado === 'completada' ? 'Completada' : m.estado === 'en_curso' ? 'En curso' : 'Pendiente'}
                                 {m.fecha_salida && ` · ${new Date(m.fecha_salida).toLocaleDateString('es-AR')}`}
                               </div>
+                              {/* Requisitos: solo de hitos completados o en curso (la base no expone los futuros) */}
+                              {reqsDe(m.etapa_id).length > 0 && (
+                                <ul className="mt-1.5 space-y-0.5">
+                                  {reqsDe(m.etapa_id).map((r) => (
+                                    <li key={r.id} className="flex items-center gap-1.5 text-xs">
+                                      <span className={r.completado ? 'text-emerald-600' : 'text-slate-300'}>{r.completado ? '☑' : '☐'}</span>
+                                      <span className={r.completado ? 'text-slate-500 line-through' : 'text-slate-600'}>
+                                        {r.nombre}{r.obligatorio && <span className="text-red-400" title="Obligatorio"> *</span>}
+                                      </span>
+                                    </li>
+                                  ))}
+                                </ul>
+                              )}
                             </li>
                           );
                         })}
