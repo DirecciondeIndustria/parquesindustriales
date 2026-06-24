@@ -15,6 +15,8 @@ import Escrituraciones from './pages/Escrituraciones';
 import Archivo from './pages/Archivo';
 import Alertas from './pages/Alertas';
 import Auditoria from './pages/Auditoria';
+import Usuarios from './pages/Usuarios';
+import MiCuenta from './pages/MiCuenta';
 import Placeholder from './pages/Placeholder';
 
 export default function App() {
@@ -44,7 +46,8 @@ export default function App() {
           <Route path="alertas" element={<Alertas />} />
           <Route path="asistente" element={<Placeholder titulo="Asistente administrativo" fase="Fase 5" />} />
           <Route path="auditoria" element={<Auditoria />} />
-          <Route path="usuarios" element={<Placeholder titulo="Usuarios y roles" fase="Fase 0/1" />} />
+          <Route path="usuarios" element={<Usuarios />} />
+          <Route path="mi-cuenta" element={<MiCuenta />} />
         </Route>
       </Routes>
     </BrowserRouter>

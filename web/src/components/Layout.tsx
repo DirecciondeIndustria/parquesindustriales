@@ -87,13 +87,15 @@ export default function Layout() {
           <div className="flex-1" />
           <div className="flex items-center gap-3">
             <ThemeToggle />
-            <div className="text-right hidden sm:block">
-              <div className="text-sm font-semibold text-slate-800 leading-tight">{perfil?.nombre ?? 'Usuario'}</div>
-              <div className="text-xs text-slate-500 capitalize">{perfil?.rol?.replace('_', ' ')}</div>
-            </div>
-            <div className="w-9 h-9 rounded-full grid place-items-center text-white text-sm font-semibold shadow-md" style={{ background: 'var(--brand-grad)' }}>
-              {iniciales}
-            </div>
+            <NavLink to="/mi-cuenta" title="Mi cuenta" className="flex items-center gap-3 rounded-lg px-1.5 py-1 hover:bg-slate-100 transition-colors">
+              <div className="text-right hidden sm:block">
+                <div className="text-sm font-semibold text-slate-800 leading-tight">{perfil?.nombre ?? 'Usuario'}</div>
+                <div className="text-xs text-slate-500 capitalize">{perfil?.rol?.replace('_', ' ')}</div>
+              </div>
+              <div className="w-9 h-9 rounded-full grid place-items-center text-white text-sm font-semibold shadow-md" style={{ background: 'var(--brand-grad)' }}>
+                {iniciales}
+              </div>
+            </NavLink>
             <button
               onClick={salir}
               className="ml-1 text-slate-400 hover:text-red-600 transition-colors p-1.5 rounded-lg hover:bg-red-50"
