@@ -19,7 +19,7 @@ export default function Expedientes() {
   const [modalSiglas, setModalSiglas] = useState(false);
   const anioActual = new Date().getFullYear();
   const [form, setForm] = useState({
-    numero: '', anio: anioActual.toString(), sigla: '', tipo_tramite_id: '', empresa_id: '',
+    numero: '', anio: anioActual.toString(), sigla: '', numero_fichero: '', tipo_tramite_id: '', empresa_id: '',
     parcela_id: '', plazo_vencimiento: '', observaciones: '',
   });
 
@@ -74,6 +74,7 @@ export default function Expedientes() {
         numero: Number(form.numero),
         anio: Number(form.anio),
         sigla: form.sigla || null,
+        numero_fichero: form.numero_fichero || null,
         tipo_tramite_id: form.tipo_tramite_id || null,
         empresa_id: form.empresa_id || null,
         parcela_id: form.parcela_id || null,
@@ -93,7 +94,7 @@ export default function Expedientes() {
 
   function abrir() {
     setForm({
-      numero: '', anio: anioActual.toString(), sigla: siglaVigente,
+      numero: '', anio: anioActual.toString(), sigla: siglaVigente, numero_fichero: '',
       tipo_tramite_id: '', empresa_id: '', parcela_id: '', plazo_vencimiento: '', observaciones: '',
     });
     setModal(true);
@@ -219,10 +220,16 @@ export default function Expedientes() {
               {parcelas.map((p) => <option key={p.id} value={p.id}>{p.identificacion}</option>)}
             </select>
           </Campo>
-          <Campo label="Plazo de vencimiento (opcional)">
-            <input className={inputCls} type="date" value={form.plazo_vencimiento}
-              onChange={(ev) => setForm({ ...form, plazo_vencimiento: ev.target.value })} />
-          </Campo>
+          <div className="grid grid-cols-2 gap-4">
+            <Campo label="N° de fichero (archivo físico)">
+              <input className={inputCls} value={form.numero_fichero} placeholder="Ej: F-128"
+                onChange={(ev) => setForm({ ...form, numero_fichero: ev.target.value })} />
+            </Campo>
+            <Campo label="Plazo de vencimiento (opcional)">
+              <input className={inputCls} type="date" value={form.plazo_vencimiento}
+                onChange={(ev) => setForm({ ...form, plazo_vencimiento: ev.target.value })} />
+            </Campo>
+          </div>
           <Campo label="Observaciones">
             <textarea className={inputCls} rows={2} value={form.observaciones}
               onChange={(ev) => setForm({ ...form, observaciones: ev.target.value })} />

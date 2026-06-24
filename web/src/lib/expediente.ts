@@ -7,6 +7,8 @@ export interface Expediente {
   empresa_id: string | null;
   parcela_id: string | null;
   estado: 'iniciado' | 'en_tramite' | 'demorado' | 'finalizado' | 'archivado' | 'baja';
+  numero_fichero: string | null;
+  poseedor_actual: string | null;
   responsable_id: string | null;
   fecha_inicio: string;
   plazo_vencimiento: string | null;

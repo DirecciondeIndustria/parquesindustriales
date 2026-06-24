@@ -39,6 +39,7 @@ export default function ExpedienteDetalle() {
   const [altaReq, setAltaReq] = useState<{ etapaId: string; nombre: string; obligatorio: boolean; foja_desde: string; foja_hasta: string } | null>(null);
   const [repetir, setRepetir] = useState<{ sub: SubTramite; etapaDestino: string } | null>(null);
   const [fojaEdit, setFojaEdit] = useState<{ sub: SubTramite; desde: string; hasta: string } | null>(null);
+  const [moverModal, setMoverModal] = useState<{ aUsuario: string; nota: string } | null>(null);
 
   const { data: exp, isLoading } = useQuery({
     queryKey: ['expediente', id],
@@ -162,6 +163,38 @@ export default function ExpedienteDetalle() {
     },
   });
 
+  // ── Custodia física (ficheros / pasamano) ──
+  const { data: usuarios = [] } = useQuery({
+    queryKey: ['usuarios-min'],
+    queryFn: async () => {
+      const { data, error } = await supabase.from('usuarios').select('id, nombre').eq('activo', true).order('nombre');
+      if (error) throw error;
+      return data as { id: string; nombre: string }[];
+    },
+  });
+  const { data: custodia = [] } = useQuery({
+    queryKey: ['custodia', id],
+    queryFn: async () => {
+      const { data, error } = await supabase.from('custodia_movimientos').select('*').eq('expediente_id', id).order('fecha', { ascending: false });
+      if (error) throw error;
+      return data as { id: string; de_usuario: string | null; a_usuario: string | null; registrado_por: string | null; nota: string | null; fecha: string }[];
+    },
+  });
+  const usrNom = (uid: string | null) => uid ? (usuarios.find((u) => u.id === uid)?.nombre ?? '—') : 'Archivo';
+
+  const moverExp = useMutation({
+    mutationFn: async ({ aUsuario, nota }: { aUsuario: string; nota: string }) => {
+      const { error } = await supabase.rpc('mover_expediente', { p_exp: id, p_a_usuario: aUsuario || null, p_nota: nota || null });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      setMoverModal(null); setMensaje('');
+      qc.invalidateQueries({ queryKey: ['custodia', id] });
+      qc.invalidateQueries({ queryKey: ['expediente', id] });
+    },
+    onError: (e: unknown) => setMensaje(traducirError(e)),
+  });
+
   const refrescaEtapas = () => {
     qc.invalidateQueries({ queryKey: ['etapas', id] });
     qc.invalidateQueries({ queryKey: ['expediente', id] });
@@ -281,6 +314,33 @@ export default function ExpedienteDetalle() {
         )}
         {mensaje && (
           <div className="mt-3 text-sm text-red-700 bg-red-50 border border-red-200 rounded-lg p-3">{mensaje}</div>
+        )}
+      </div>
+
+      {/* Custodia física / ubicación del expediente */}
+      <div className="bg-white rounded-xl shadow-sm p-5 mb-6">
+        <div className="flex items-center justify-between flex-wrap gap-3 mb-3">
+          <h2 className="font-semibold text-slate-800">Custodia / ubicación física</h2>
+          <Boton variante="secundario" onClick={() => { setMensaje(''); setMoverModal({ aUsuario: '', nota: '' }); }}>Entregar / mover</Boton>
+        </div>
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-sm">
+          <Dato label="N° de fichero" valor={exp.numero_fichero ?? '—'} />
+          <Dato label="Ubicación actual" valor={exp.poseedor_actual ? `En poder de ${usrNom(exp.poseedor_actual)}` : 'En el archivo'} />
+          <Dato label="Movimientos" valor={`${custodia.length}`} />
+        </div>
+        {custodia.length > 0 && (
+          <div className="mt-4">
+            <div className="text-xs text-slate-400 mb-1">Ruta interna (quién lo tuvo)</div>
+            <ol className="space-y-1 text-sm">
+              {custodia.map((m) => (
+                <li key={m.id} className="flex items-center gap-2 text-slate-600 flex-wrap">
+                  <span className="text-slate-400 text-xs whitespace-nowrap">{new Date(m.fecha).toLocaleString('es-AR')}</span>
+                  <span>{usrNom(m.de_usuario)} → <strong className="text-slate-800">{usrNom(m.a_usuario)}</strong></span>
+                  {m.nota && <span className="text-slate-400">· {m.nota}</span>}
+                </li>
+              ))}
+            </ol>
+          </div>
         )}
       </div>
 
@@ -486,6 +546,35 @@ export default function ExpedienteDetalle() {
             <div className="flex justify-end gap-2 pt-2">
               <Boton type="button" variante="secundario" onClick={() => setRepetir(null)}>Cancelar</Boton>
               <Boton type="submit" disabled={repetirSub.isPending || !repetir.etapaDestino}>{repetirSub.isPending ? 'Agregando…' : 'Agregar'}</Boton>
+            </div>
+          </form>
+        )}
+      </Modal>
+
+      {/* Modal: entregar / mover expediente (custodia) */}
+      <Modal titulo="Entregar / mover expediente" abierto={!!moverModal} onCerrar={() => setMoverModal(null)}>
+        {moverModal && (
+          <form onSubmit={(e: FormEvent) => { e.preventDefault(); moverExp.mutate(moverModal); }} className="space-y-4">
+            <p className="text-sm text-slate-600">
+              Ubicación actual: <strong>{exp.poseedor_actual ? `En poder de ${usrNom(exp.poseedor_actual)}` : 'En el archivo'}</strong>.
+            </p>
+            <Campo label="Entregar a">
+              <select className={inputCls} value={moverModal.aUsuario}
+                onChange={(e) => setMoverModal({ ...moverModal, aUsuario: e.target.value })}>
+                <option value="">— Devolver al archivo —</option>
+                {usuarios.filter((u) => u.id !== exp.poseedor_actual).map((u) => (
+                  <option key={u.id} value={u.id}>{u.nombre}</option>
+                ))}
+              </select>
+            </Campo>
+            <Campo label="Nota (opcional)">
+              <input className={inputCls} value={moverModal.nota} onChange={(e) => setMoverModal({ ...moverModal, nota: e.target.value })} />
+            </Campo>
+            <p className="text-xs text-slate-500">Recordá: solo la mesa de entrada da salida del archivo; después, solo quien lo tiene en su poder puede pasarlo a otro agente.</p>
+            {mensaje && <p className="text-sm text-red-600">{mensaje}</p>}
+            <div className="flex justify-end gap-2 pt-2">
+              <Boton type="button" variante="secundario" onClick={() => setMoverModal(null)}>Cancelar</Boton>
+              <Boton type="submit" disabled={moverExp.isPending}>{moverExp.isPending ? 'Registrando…' : 'Registrar movimiento'}</Boton>
             </div>
           </form>
         )}
