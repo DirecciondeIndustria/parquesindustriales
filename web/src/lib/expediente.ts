@@ -67,3 +67,8 @@ export const ESTADO_LABEL: Record<Expediente['estado'], string> = {
 export function diasEnEtapa(et: Etapa): number | null {
   return et.fecha_entrada ? dias(et.fecha_entrada) : null;
 }
+
+/** Formato oficial del expediente: Número/Año Sigla (ej. "1025/2026 MP"). */
+export function fmtExp(e: { numero: number; anio: number; sigla: string | null }): string {
+  return `${e.numero}/${e.anio}${e.sigla ? ` ${e.sigla}` : ''}`;
+}

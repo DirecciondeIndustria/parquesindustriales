@@ -5,7 +5,7 @@ import { supabase } from '../lib/supabase';
 import { usePermisos } from '../lib/permisos';
 import { Boton, Modal, Campo, inputCls } from '../components/ui';
 import {
-  semaforo, SEMAFORO_COLOR, ESTADO_LABEL, diasEnEtapa,
+  semaforo, SEMAFORO_COLOR, ESTADO_LABEL, diasEnEtapa, fmtExp,
   type Expediente, type Etapa,
 } from '../lib/expediente';
 import { fmtFecha } from '../lib/fechas';
@@ -267,7 +267,7 @@ export default function ExpedienteDetalle() {
           <div>
             <div className="flex items-center gap-3">
               <span className="w-4 h-4 rounded-full" style={{ background: SEMAFORO_COLOR[s.color] }} />
-              <h1 className="text-2xl font-bold text-slate-800">Expediente {exp.sigla ? `${exp.sigla} ` : ''}{exp.numero}/{exp.anio}</h1>
+              <h1 className="text-2xl font-bold text-slate-800">Expediente {fmtExp(exp)}</h1>
             </div>
             <p className="text-slate-500 mt-1">{tipo ?? 'Sin tipo'} · {empresa ?? 'Sin empresa'}</p>
           </div>

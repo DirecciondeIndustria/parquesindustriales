@@ -98,7 +98,7 @@ export default function Documentos() {
   const usrNom = (id: string | null) => usuarios.find((u) => u.id === id)?.nombre ?? '—';
   const expNom = (id: string | null) => {
     const e = expedientes.find((x) => x.id === id);
-    return e ? `${e.sigla ? e.sigla + ' ' : ''}${e.numero}/${e.anio}` : '—';
+    return e ? `${e.numero}/${e.anio}${e.sigla ? ' ' + e.sigla : ''}` : '—';
   };
 
   const misPendientes = derivaciones.filter((d) => d.a_usuario === perfil?.id && d.estado === 'pendiente');
@@ -346,7 +346,7 @@ function ModalDerivar({
           <Campo label="Expediente (opcional)">
             <select className={inputCls} value={form.expediente_id} onChange={(e) => setForm({ ...form, expediente_id: e.target.value })}>
               <option value="">Sin asociar</option>
-              {expedientes.map((x) => <option key={x.id} value={x.id}>{x.sigla ? x.sigla + ' ' : ''}{x.numero}/{x.anio}</option>)}
+              {expedientes.map((x) => <option key={x.id} value={x.id}>{x.numero}/{x.anio}{x.sigla ? ' ' + x.sigla : ''}</option>)}
             </select>
           </Campo>
         </div>

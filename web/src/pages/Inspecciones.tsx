@@ -67,7 +67,7 @@ export default function Inspecciones() {
   const parNom = (id: string | null) => parcelas.find((p) => p.id === id)?.identificacion ?? '—';
   const expNom = (id: string | null) => {
     const e = expedientes.find((x) => x.id === id);
-    return e ? `${e.sigla ? e.sigla + ' ' : ''}${e.numero}/${e.anio}` : '—';
+    return e ? `${e.numero}/${e.anio}${e.sigla ? ' ' + e.sigla : ''}` : '—';
   };
 
   const q = busca.trim().toLowerCase();
@@ -176,7 +176,7 @@ export default function Inspecciones() {
           <Campo label="Expediente (opcional)">
             <select className={inputCls} value={form.expediente_id} onChange={(e) => setForm({ ...form, expediente_id: e.target.value })}>
               <option value="">Sin asociar</option>
-              {expedientes.map((x) => <option key={x.id} value={x.id}>{x.sigla ? x.sigla + ' ' : ''}{x.numero}/{x.anio}</option>)}
+              {expedientes.map((x) => <option key={x.id} value={x.id}>{x.numero}/{x.anio}{x.sigla ? ' ' + x.sigla : ''}</option>)}
             </select>
           </Campo>
           <div className="grid grid-cols-2 gap-4">

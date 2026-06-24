@@ -36,7 +36,7 @@ export function exportarHojaRuta(exp: Expediente, etapas: Etapa[], subs: SubTram
   y = 36;
   doc.setTextColor(20);
   doc.setFont('helvetica', 'bold').setFontSize(16);
-  doc.text(`Expediente N° ${exp.sigla ? `${exp.sigla} ` : ''}${exp.numero}/${exp.anio}`, M, y);
+  doc.text(`Expediente N° ${exp.numero}/${exp.anio}${exp.sigla ? ` ${exp.sigla}` : ''}`, M, y);
   y += 8;
 
   // ── Datos generales ──

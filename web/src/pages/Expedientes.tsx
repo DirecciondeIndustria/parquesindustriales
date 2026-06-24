@@ -4,7 +4,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
 import { usePermisos } from '../lib/permisos';
 import { Boton, Modal, Campo, inputCls, EncabezadoPagina } from '../components/ui';
-import { semaforo, SEMAFORO_COLOR, ESTADO_LABEL, type Expediente } from '../lib/expediente';
+import { semaforo, SEMAFORO_COLOR, ESTADO_LABEL, fmtExp, type Expediente } from '../lib/expediente';
 
 interface TipoTramite { id: string; nombre: string; }
 interface Empresa { id: string; razon_social: string; }
@@ -175,7 +175,7 @@ export default function Expedientes() {
               return (
                 <tr key={e.id} className="hover:bg-slate-50 cursor-pointer" onClick={() => navigate(`/expedientes/${e.id}`)}>
                   <td className="px-4 py-3"><span className="text-slate-600">{ESTADO_LABEL[e.estado]}</span></td>
-                  <td className="px-4 py-3 font-semibold text-[var(--brand)]">{e.sigla ? `${e.sigla} ` : ''}{e.numero}/{e.anio}</td>
+                  <td className="px-4 py-3 font-semibold text-[var(--brand)]">{fmtExp(e)}</td>
                   <td className="px-4 py-3 text-slate-600">{tipoNom(e.tipo_tramite_id)}</td>
                   <td className="px-4 py-3 text-slate-600">{empNom(e.empresa_id)}</td>
                   <td className="px-4 py-3 text-slate-500">{s.motivo}</td>

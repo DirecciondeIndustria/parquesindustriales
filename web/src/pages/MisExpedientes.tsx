@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../lib/auth';
 import { EncabezadoPagina } from '../components/ui';
-import { semaforo, SEMAFORO_COLOR, ESTADO_LABEL, type Expediente } from '../lib/expediente';
+import { semaforo, SEMAFORO_COLOR, ESTADO_LABEL, fmtExp, type Expediente } from '../lib/expediente';
 
 interface Empresa { id: string; razon_social: string; }
 interface Parcela { id: string; parque_id: string; }
@@ -73,7 +73,7 @@ export default function MisExpedientes() {
                 className="text-left bg-white rounded-2xl card-elev hover-lift p-5 relative overflow-hidden">
                 <span className="absolute left-0 top-0 h-full w-1.5" style={{ background: SEMAFORO_COLOR[s.color] }} />
                 <div className="text-xl font-bold text-[var(--brand)] tabular-nums">
-                  {e.sigla ? `${e.sigla} ` : ''}{e.numero}/{e.anio}
+                  {fmtExp(e)}
                 </div>
                 <div className="mt-3 space-y-1.5 text-sm">
                   <div>
