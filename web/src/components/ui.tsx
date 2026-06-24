@@ -1,4 +1,5 @@
 import type { ReactNode, ButtonHTMLAttributes } from 'react';
+import { createPortal } from 'react-dom';
 
 export function Boton({
   variante = 'primario',
@@ -25,7 +26,9 @@ export function Modal({
   titulo, abierto, onCerrar, children,
 }: { titulo: string; abierto: boolean; onCerrar: () => void; children: ReactNode }) {
   if (!abierto) return null;
-  return (
+  // Portal al <body>: evita que cualquier contenedor padre (con animación,
+  // filtros o transform) recorte el modal posicionado con `fixed`.
+  return createPortal(
     <div className="fixed inset-0 z-40 backdrop-blur-md overflow-y-auto p-4 animate-fade" onClick={onCerrar}>
       <div
         className="w-full max-w-lg mx-auto my-4 sm:my-8 bg-white rounded-2xl shadow-2xl animate-scale ring-1 ring-slate-200"
@@ -39,7 +42,8 @@ export function Modal({
         </div>
         <div className="p-5">{children}</div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
 
