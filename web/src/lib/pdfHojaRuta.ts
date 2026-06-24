@@ -15,6 +15,24 @@ function fmtFoja(d?: number | null, h?: number | null): string {
   return `f. ${d ?? h}`;
 }
 
+/** Carga /logo.png y lo devuelve como dataURL con sus dimensiones. */
+function cargarLogo(): Promise<{ dataUrl: string; w: number; h: number } | null> {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () => {
+      const canvas = document.createElement('canvas');
+      canvas.width = img.naturalWidth; canvas.height = img.naturalHeight;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) { resolve(null); return; }
+      ctx.drawImage(img, 0, 0);
+      try { resolve({ dataUrl: canvas.toDataURL('image/png'), w: img.naturalWidth, h: img.naturalHeight }); }
+      catch { resolve(null); }
+    };
+    img.onerror = () => resolve(null);
+    img.src = '/logo.png';
+  });
+}
+
 // Paleta oficial Marca Chubut (Brandbook V1.3).
 const NARANJA: [number, number, number] = [255, 104, 44];   // Naranja Chubut (principal)
 const AMBAR:   [number, number, number] = [255, 177, 9];     // Amarillo andino
@@ -22,11 +40,12 @@ const AZUL:    [number, number, number] = [33, 112, 140];    // Azul atlántico
 const VERDE:   [number, number, number] = [22, 163, 74];
 const GRIS:    [number, number, number] = [148, 163, 184];
 
-export function exportarHojaRuta(exp: Expediente, etapas: Etapa[], subs: SubTramite[], meta: Meta) {
+export async function exportarHojaRuta(exp: Expediente, etapas: Etapa[], subs: SubTramite[], meta: Meta) {
   const doc = new jsPDF({ unit: 'mm', format: 'a4' });
   const W = 210;
   const M = 16;
   let y = 16;
+  const logo = await cargarLogo();
 
   const colorEstado = (e: Etapa): [number, number, number] =>
     e.estado === 'completada' ? VERDE : e.estado === 'en_curso' ? AZUL : GRIS;
@@ -43,20 +62,29 @@ export function exportarHojaRuta(exp: Expediente, etapas: Etapa[], subs: SubTram
     }
   };
 
-  // ── Encabezado ──
-  doc.setFillColor(...NARANJA);
-  doc.rect(0, 0, W, 26, 'F');
-  doc.setTextColor(255);
-  doc.setFont('helvetica', 'bold').setFontSize(14);
-  doc.text('SIGPIP — Hoja de Ruta de Expediente', M, 12);
-  doc.setFont('helvetica', 'normal').setFontSize(9);
-  doc.text('Dirección de Industria · Ministerio de Producción · Provincia del Chubut', M, 18);
-  doc.text(`Generado: ${new Date().toLocaleString('es-AR')}`, M, 23);
+  // ── Encabezado: logo centrado sobre blanco (Brandbook) ──
+  let hb = 12;   // borde inferior del bloque del logo
+  if (logo) {
+    const maxW = 110, maxH = 18;
+    let w = maxW, h = (logo.h / logo.w) * maxW;
+    if (h > maxH) { h = maxH; w = (logo.w / logo.h) * maxH; }
+    doc.addImage(logo.dataUrl, 'PNG', (W - w) / 2, 8, w, h);
+    hb = 8 + h + 3;
+  } else {
+    doc.setFont('helvetica', 'bold').setFontSize(15).setTextColor(...NARANJA);
+    doc.text('SIGPIP', W / 2, 14, { align: 'center' });
+    hb = 18;
+  }
+  doc.setDrawColor(...NARANJA).setLineWidth(0.6).line(M, hb, W - M, hb);
+  doc.setFont('helvetica', 'normal').setFontSize(8).setTextColor(110);
+  doc.text('Dirección de Industria · Ministerio de Producción · Provincia del Chubut', W / 2, hb + 5, { align: 'center' });
+  doc.setFontSize(7).setTextColor(140);
+  doc.text(`Generado: ${new Date().toLocaleString('es-AR')}`, W - M, hb + 5, { align: 'right' });
 
-  y = 36;
+  y = hb + 14;
   doc.setTextColor(20);
   doc.setFont('helvetica', 'bold').setFontSize(16);
-  doc.text(`Expediente N° ${exp.numero}/${exp.anio}${exp.sigla ? ` ${exp.sigla}` : ''}`, M, y);
+  doc.text(`Hoja de Ruta — Expediente N° ${exp.numero}/${exp.anio}${exp.sigla ? ` ${exp.sigla}` : ''}`, M, y);
   y += 8;
 
   // ── Datos generales ──
