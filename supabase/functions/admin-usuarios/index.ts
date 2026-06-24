@@ -90,6 +90,17 @@ Deno.serve(async (req) => {
       return json({ ok: true });
     }
 
+    if (action === 'eliminar') {
+      const { user_id } = body;
+      if (!user_id) return json({ error: 'Datos incompletos.' }, 400);
+      if (user_id === userData.user.id) return json({ error: 'No podés eliminar tu propia cuenta.' }, 400);
+      // Borra la cuenta de Auth; el perfil en `usuarios` y sus referencias
+      // se eliminan/anulan por las claves foráneas (on delete cascade/set null).
+      const { error } = await admin.auth.admin.deleteUser(user_id);
+      if (error) return json({ error: error.message }, 400);
+      return json({ ok: true });
+    }
+
     // ── Portal de empresas (cuentas externas de solo lectura) ──
     if (action === 'crear_acceso_empresa') {
       const { empresa_id, email, password } = body;

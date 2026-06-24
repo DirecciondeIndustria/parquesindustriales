@@ -2,6 +2,7 @@ import { useState, type FormEvent } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase, type Rol } from '../lib/supabase';
 import { usePermisos } from '../lib/permisos';
+import { useAuth } from '../lib/auth';
 import { adminUsuarios } from '../lib/adminApi';
 import { Boton, Modal, Campo, inputCls, EncabezadoPagina } from '../components/ui';
 
@@ -20,6 +21,7 @@ export const ROLES: { valor: Rol; label: string }[] = [
 export default function Usuarios() {
   const qc = useQueryClient();
   const { esAdmin } = usePermisos();
+  const { perfil } = useAuth();
   const [modal, setModal] = useState(false);
   const [form, setForm] = useState({ nombre: '', email: '', password: '', rol: 'consulta' as Rol });
   const [reset, setReset] = useState<{ u: UsuarioRow; password: string } | null>(null);
@@ -53,6 +55,11 @@ export default function Usuarios() {
   const resetPass = useMutation({
     mutationFn: (v: { user_id: string; password: string }) => adminUsuarios({ action: 'resetear_password', ...v }),
     onSuccess: () => { setReset(null); setMsg('Contraseña actualizada.'); },
+    onError: (e: Error) => setMsg(e.message),
+  });
+  const eliminar = useMutation({
+    mutationFn: (user_id: string) => adminUsuarios({ action: 'eliminar', user_id }),
+    onSuccess: () => { setMsg('Usuario eliminado.'); refresca(); },
     onError: (e: Error) => setMsg(e.message),
   });
 
@@ -106,9 +113,13 @@ export default function Usuarios() {
                 <td className="px-4 py-3 text-right whitespace-nowrap">
                   <button onClick={() => { setMsg(''); setReset({ u, password: '' }); }} className="text-[var(--brand)] hover:underline mr-3">Resetear clave</button>
                   <button onClick={() => setActivo.mutate({ user_id: u.id, activo: !u.activo })}
-                    className={u.activo ? 'text-red-600 hover:underline' : 'text-emerald-600 hover:underline'}>
+                    className={u.activo ? 'text-amber-600 hover:underline' : 'text-emerald-600 hover:underline'}>
                     {u.activo ? 'Desactivar' : 'Activar'}
                   </button>
+                  {u.id !== perfil?.id && (
+                    <button onClick={() => { setMsg(''); if (confirm(`¿Eliminar definitivamente a "${u.nombre}"? Esta acción no se puede deshacer.`)) eliminar.mutate(u.id); }}
+                      className="text-red-600 hover:underline ml-3">Eliminar</button>
+                  )}
                 </td>
               </tr>
             ))}
