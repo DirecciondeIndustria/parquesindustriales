@@ -16,7 +16,7 @@ interface Alerta {
 const SEV: Record<string, { label: string; color: string; bg: string }> = {
   alta:  { label: 'Alta',  color: '#dc2626', bg: '#fef2f2' },
   media: { label: 'Media', color: '#d97706', bg: '#fffbeb' },
-  baja:  { label: 'Baja',  color: '#2563eb', bg: '#eff6ff' },
+  baja:  { label: 'Baja',  color: '#21708c', bg: '#eff6ff' },
 };
 
 export default function Alertas() {

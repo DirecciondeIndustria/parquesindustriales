@@ -18,7 +18,7 @@ interface Registro {
 
 const ACCION: Record<string, { label: string; color: string }> = {
   INSERT: { label: 'Alta', color: '#16a34a' },
-  UPDATE: { label: 'Modificación', color: '#2563eb' },
+  UPDATE: { label: 'Modificación', color: '#21708c' },
   DELETE: { label: 'Baja', color: '#dc2626' },
 };
 

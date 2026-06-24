@@ -1,15 +1,19 @@
 @import "tailwindcss";
-@import url('https://fonts.googleapis.com/css2?family=Fira+Sans:wght@300;400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Public+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,800&display=swap');
 
 :root {
-  /* Paleta tomada del logo: amarillo → naranja → rojo, con teal como acento mínimo */
-  --brand: #e2581f;          /* naranja principal */
-  --brand-dark: #b8431d;
-  --brand-light: #f97316;
-  --accent: #f9b414;         /* amarillo */
-  --teal: #2e6e87;           /* el "poco azul" del logo */
-  --brand-grad: linear-gradient(135deg, #e2581f 0%, #f59e0b 100%);
-  --sidebar-grad: linear-gradient(180deg, #9a3412 0%, #c2410c 55%, #e2581f 100%);
+  /* Paleta oficial Marca Chubut (Brandbook V1.3). Jerarquía: naranja domina,
+     azul siempre presente pero secundario. */
+  --brand: #ff682c;          /* Naranja Chubut (principal, 36%) */
+  --brand-dark: #e85420;
+  --brand-light: #ff8540;    /* Naranja cordillera (16%) */
+  --accent: #ffb109;         /* Amarillo andino (16%) */
+  --accent-2: #ffc815;       /* Amarillo amanecer (8%) */
+  --azul: #21708c;           /* Azul atlántico (16%) */
+  --azul-claro: #5894a7;     /* Azul patagonia (8%) */
+  --teal: #21708c;           /* compat: azul atlántico */
+  --brand-grad: linear-gradient(135deg, #ff682c 0%, #ff8540 55%, #ffb109 100%);
+  --sidebar-grad: linear-gradient(180deg, #8f3416 0%, #d24f1f 55%, #ff682c 100%);
   --chart-track: #eef2f7;
 }
 
@@ -17,7 +21,7 @@ html, body, #root { height: 100%; }
 
 body {
   margin: 0;
-  font-family: 'Fira Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  font-family: 'Public Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
   color: #0f172a;
   background:
     radial-gradient(1200px 600px at 100% -10%, rgba(249, 115, 22, 0.07), transparent 60%),

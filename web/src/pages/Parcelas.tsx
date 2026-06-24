@@ -24,7 +24,7 @@ const ESTADOS: Record<EstadoParcela, { label: string; color: string; texto: stri
   desarrollo:     { label: 'En desarrollo',  color: '#eab308', texto: 'Empresa en desarrollo' },
   incumplimiento: { label: 'Incumplimiento', color: '#dc2626', texto: 'Incumplimientos' },
   libre:          { label: 'Libre',          color: '#94a3b8', texto: 'Parcela libre' },
-  escriturada:    { label: 'Escriturada',    color: '#2563eb', texto: 'Escriturada' },
+  escriturada:    { label: 'Escriturada',    color: '#21708c', texto: 'Escriturada' },
 };
 
 const vacio = {

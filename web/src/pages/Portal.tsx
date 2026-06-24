@@ -164,7 +164,7 @@ export default function Portal() {
                   <button onClick={() => setAbierto(open ? null : e.id)} className="w-full text-left p-5 hover:bg-slate-50 transition-colors">
                     <div className="flex items-center justify-between flex-wrap gap-2">
                       <div className="text-lg font-bold text-[var(--brand)] tabular-nums">Expediente {fmtExp(e)}</div>
-                      <span className="text-xs px-2.5 py-1 rounded-full" style={cerrado ? { background: '#dcfce7', color: '#15803d' } : { background: '#dbeafe', color: '#1d4ed8' }}>
+                      <span className="text-xs px-2.5 py-1 rounded-full" style={cerrado ? { background: '#dcfce7', color: '#15803d' } : { background: '#e1edf1', color: '#21708c' }}>
                         {ESTADO_LABEL[e.estado]}
                       </span>
                     </div>
@@ -185,7 +185,7 @@ export default function Portal() {
                       )}
                       <ol className="relative border-l-2 border-slate-200 ml-2 mt-3">
                         {movsDe(e.id).map((m) => {
-                          const color = m.estado === 'completada' ? '#16a34a' : m.estado === 'en_curso' ? '#2563eb' : '#cbd5e1';
+                          const color = m.estado === 'completada' ? '#16a34a' : m.estado === 'en_curso' ? '#21708c' : '#cbd5e1';
                           return (
                             <li key={m.orden} className="ml-5 pb-4 last:pb-0">
                               <span className="absolute -left-[7px] w-3.5 h-3.5 rounded-full border-2 border-white" style={{ background: color }} />

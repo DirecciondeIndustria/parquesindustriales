@@ -403,7 +403,7 @@ export default function ExpedienteDetalle() {
         ) : (
           <ol className="relative border-l-2 border-slate-200 ml-2">
             {etapas.map((et) => {
-              const color = et.estado === 'completada' ? '#16a34a' : et.estado === 'en_curso' ? '#2563eb' : '#cbd5e1';
+              const color = et.estado === 'completada' ? '#16a34a' : et.estado === 'en_curso' ? '#21708c' : '#cbd5e1';
               const reqs = subsDe(et.id);
               const pend = obligPendientes(et.id).length;
               const editable = et.estado === 'en_curso';   // solo la etapa en curso admite marcar requisitos

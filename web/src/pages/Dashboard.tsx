@@ -100,7 +100,7 @@ export default function Dashboard() {
   const pctEscr = par.length ? Math.round((escrituradas / par.length) * 100) : 0;
 
   const cuenta = (arr: string[], val: string) => arr.filter((x) => x === val).length;
-  const sevColor = (s: string) => (s === 'alta' ? '#dc2626' : s === 'media' ? '#d97706' : '#2563eb');
+  const sevColor = (s: string) => (s === 'alta' ? '#dc2626' : s === 'media' ? '#d97706' : '#21708c');
 
   return (
     <div>
@@ -167,14 +167,14 @@ export default function Dashboard() {
 
       {/* KPIs */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
-        <KPI label="Expedientes activos" valor={activos.length} color="#0f4c81" icon="expedientes" />
+        <KPI label="Expedientes activos" valor={activos.length} color="#21708c" icon="expedientes" />
         <KPI label="Demorados / en riesgo" valor={demorados} color="#dc2626" icon="alertas" />
         <KPI label="Finalizados" valor={finalizados} color="#16a34a" icon="auditoria" />
-        <KPI label="Empresas activas" valor={empActivas} color="#0f4c81" icon="empresas" />
-        <KPI label="Parcelas adjudicadas" valor={parcAdjud} color="#0f4c81" icon="parcelas" />
+        <KPI label="Empresas activas" valor={empActivas} color="#21708c" icon="empresas" />
+        <KPI label="Parcelas adjudicadas" valor={parcAdjud} color="#21708c" icon="parcelas" />
         <KPI label="Parcelas libres" valor={parcLibres} color="#64748b" icon="parques" />
         <KPI label="Inspecciones realizadas" valor={inspRealizadas} color="#16a34a" icon="inspecciones" />
-        <KPI label="% Escrituradas" valor={`${pctEscr}%`} color="#2563eb" icon="escrituraciones" />
+        <KPI label="% Escrituradas" valor={`${pctEscr}%`} color="#21708c" icon="escrituraciones" />
       </div>
 
       {/* Gráficos */}
@@ -194,7 +194,7 @@ export default function Dashboard() {
             { label: 'En desarrollo', valor: cuenta(par.map((p) => p.estado), 'desarrollo'), color: '#eab308' },
             { label: 'Incumplimiento', valor: cuenta(par.map((p) => p.estado), 'incumplimiento'), color: '#dc2626' },
             { label: 'Libre', valor: cuenta(par.map((p) => p.estado), 'libre'), color: '#94a3b8' },
-            { label: 'Escriturada', valor: cuenta(par.map((p) => p.estado), 'escriturada'), color: '#2563eb' },
+            { label: 'Escriturada', valor: cuenta(par.map((p) => p.estado), 'escriturada'), color: '#21708c' },
           ]}
         />
       </div>
