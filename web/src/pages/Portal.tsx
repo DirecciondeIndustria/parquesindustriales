@@ -100,14 +100,32 @@ export default function Portal() {
         <h1 className="text-2xl font-bold text-slate-800">{empresa?.razon_social ?? 'Mi empresa'}</h1>
         <p className="text-slate-500 mb-4">Estado de sus expedientes en la Dirección de Industria. Información de referencia.</p>
 
-        {/* Opt-in de recepción digital de notas */}
-        {empresa && (
-          <label className="flex items-center gap-2 text-sm text-slate-700 bg-white rounded-xl px-3 py-2 mb-6 ring-1 ring-slate-200 w-fit">
-            <input type="checkbox" className="accent-[var(--brand)]" checked={empresa.notif_email} disabled={setNotif.isPending}
-              onChange={(e) => setNotif.mutate(e.target.checked)} />
-            Quiero recibir las notas por este medio digital {empresa.email ? `(${empresa.email})` : ''}
-          </label>
-        )}
+        {/* Notificación digital: aceptación única e irrevocable desde el portal */}
+        {empresa && (empresa.notif_email ? (
+          <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-4 mb-6 text-sm text-emerald-900">
+            <div className="font-semibold mb-1">✔ Notificación digital ACTIVA{empresa.email ? ` · ${empresa.email}` : ''}</div>
+            <p>
+              Mientras permanezca activa, las notificaciones cursadas por este medio son <strong>válidas</strong> y se
+              considerará a la empresa <strong>notificada</strong> de los requerimientos y de los <strong>plazos otorgados</strong>.
+              Para revocar esta modalidad deberá presentar <strong>nota firmada por Mesa de Entrada</strong> del Ministerio de
+              Producción y aguardar a que la Dirección de Industria la dé de baja.
+            </p>
+          </div>
+        ) : (
+          <div className="bg-white ring-1 ring-slate-200 rounded-2xl p-4 mb-6 text-sm">
+            <div className="font-semibold text-slate-800 mb-1">Notificación digital de notas</div>
+            <p className="text-slate-600 mb-3">
+              Puede optar por recibir las notas de la Dirección de Industria por este medio. <strong>La aceptación es por única vez</strong>:
+              una vez aceptada, para revocarla deberá presentar <strong>nota firmada por Mesa de Entrada</strong> y aguardar a que la Dirección la dé de baja.
+              Mientras esté activa, se considerará a la empresa <strong>notificada</strong> de los requerimientos y plazos cursados por esta vía.
+            </p>
+            <Boton
+              disabled={setNotif.isPending}
+              onClick={() => { if (confirm('¿Confirma que acepta recibir notificaciones por la vía digital? La aceptación es por única vez y solo se revoca por nota firmada en Mesa de Entrada.')) setNotif.mutate(true); }}>
+              {setNotif.isPending ? 'Procesando…' : 'Acepto recibir notificaciones por esta vía'}
+            </Boton>
+          </div>
+        ))}
 
         {/* Notas / solicitudes de documentación */}
         {notas.length > 0 && (
