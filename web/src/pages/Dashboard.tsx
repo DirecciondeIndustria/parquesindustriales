@@ -27,6 +27,19 @@ export default function Dashboard() {
   const navigate = useNavigate();
   const { perfil } = useAuth();
 
+  const { data: derivPendientes = 0 } = useQuery({
+    queryKey: ['mis-derivaciones-pendientes', perfil?.id],
+    enabled: !!perfil?.id,
+    queryFn: async () => {
+      const { count, error } = await supabase
+        .from('derivaciones')
+        .select('id', { count: 'exact', head: true })
+        .eq('a_usuario', perfil!.id).eq('estado', 'pendiente');
+      if (error) throw error;
+      return count ?? 0;
+    },
+  });
+
   const { data } = useQuery({
     queryKey: ['dashboard'],
     queryFn: async () => {
@@ -80,6 +93,18 @@ export default function Dashboard() {
           {new Date().toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
         </div>
       </div>
+
+      {/* Documentación derivada pendiente para mí (aviso al iniciar sesión) */}
+      {derivPendientes > 0 && (
+        <button onClick={() => navigate('/documentos')}
+          className="w-full text-left bg-white rounded-2xl card-elev border-l-4 border-[var(--brand)] p-4 mb-6 hover:bg-slate-50 transition-colors flex items-center gap-3">
+          <span className="text-2xl">📥</span>
+          <div>
+            <div className="font-semibold text-slate-800">Tenés {derivPendientes} documentación(es) pendiente(s) de recepción</div>
+            <div className="text-sm text-slate-500">Mesa de entrada te derivó documentación. Tocá para verla y marcarla recibida.</div>
+          </div>
+        </button>
+      )}
 
       {/* Franja de alertas críticas */}
       {alertas.length > 0 && (

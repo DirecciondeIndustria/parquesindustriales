@@ -10,8 +10,9 @@ dist/
 # Carpeta de deploy temporal (se regenera)
 deploy-inspecciones/
 
-# Configuración local del editor / Claude
-.claude/settings.local.json
+# Configuración local del editor / Claude (skills/plugins no son del proyecto)
+.claude/*
+!.claude/launch.json
 
 # Archivos del sistema operativo
 Thumbs.db

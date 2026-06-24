@@ -1,9 +1,9 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, type FormEvent } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../lib/auth';
 import { usePermisos } from '../lib/permisos';
-import { inputCls, EncabezadoPagina } from '../components/ui';
+import { Boton, Modal, Campo, inputCls, EncabezadoPagina } from '../components/ui';
 import { TIPOS_DOCUMENTALES } from '../lib/constantes';
 
 interface Documento {
@@ -17,6 +17,13 @@ interface Documento {
   created_at: string;
 }
 interface Empresa { id: string; razon_social: string; }
+interface UsuarioMin { id: string; nombre: string; }
+interface ExpedienteMin { id: string; numero: number; anio: number; sigla: string | null; }
+interface Derivacion {
+  id: string; tipo_documental: string | null; descripcion: string;
+  empresa_id: string | null; expediente_id: string | null;
+  de_usuario: string | null; a_usuario: string; estado: string; nota: string | null; fecha: string;
+}
 
 function tamañoLegible(b: number | null) {
   if (!b) return '—';
@@ -35,6 +42,16 @@ export default function Documentos() {
   const [filtroTipo, setFiltroTipo] = useState('');
   const [filtroEmp, setFiltroEmp] = useState('');
   const [error, setError] = useState('');
+  const [modalDeriv, setModalDeriv] = useState(false);
+
+  const { data: esMesaEntrada = false } = useQuery({
+    queryKey: ['es-mesa-entrada'],
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc('es_mesa_entrada');
+      if (error) throw error;
+      return data as boolean;
+    },
+  });
 
   const { data: empresas = [] } = useQuery({
     queryKey: ['empresas-min'],
@@ -42,6 +59,30 @@ export default function Documentos() {
       const { data, error } = await supabase.from('empresas').select('id, razon_social').order('razon_social');
       if (error) throw error;
       return data as Empresa[];
+    },
+  });
+  const { data: usuarios = [] } = useQuery({
+    queryKey: ['usuarios-min'],
+    queryFn: async () => {
+      const { data, error } = await supabase.from('usuarios').select('id, nombre').eq('activo', true).order('nombre');
+      if (error) throw error;
+      return data as UsuarioMin[];
+    },
+  });
+  const { data: expedientes = [] } = useQuery({
+    queryKey: ['expedientes-min'],
+    queryFn: async () => {
+      const { data, error } = await supabase.from('expedientes').select('id, numero, anio, sigla').order('anio', { ascending: false }).order('numero', { ascending: false });
+      if (error) throw error;
+      return data as ExpedienteMin[];
+    },
+  });
+  const { data: derivaciones = [] } = useQuery({
+    queryKey: ['derivaciones'],
+    queryFn: async () => {
+      const { data, error } = await supabase.from('derivaciones').select('*').order('fecha', { ascending: false }).limit(100);
+      if (error) throw error;
+      return data as Derivacion[];
     },
   });
   const { data: docs = [], isLoading } = useQuery({
@@ -54,6 +95,21 @@ export default function Documentos() {
   });
 
   const empNom = (id: string | null) => empresas.find((e) => e.id === id)?.razon_social ?? '—';
+  const usrNom = (id: string | null) => usuarios.find((u) => u.id === id)?.nombre ?? '—';
+  const expNom = (id: string | null) => {
+    const e = expedientes.find((x) => x.id === id);
+    return e ? `${e.sigla ? e.sigla + ' ' : ''}${e.numero}/${e.anio}` : '—';
+  };
+
+  const misPendientes = derivaciones.filter((d) => d.a_usuario === perfil?.id && d.estado === 'pendiente');
+
+  const recibir = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase.from('derivaciones').update({ estado: 'recibida', recibida_at: new Date().toISOString() }).eq('id', id);
+      if (error) throw error;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['derivaciones'] }),
+  });
 
   const subir = useMutation({
     mutationFn: async (file: File) => {
@@ -61,13 +117,8 @@ export default function Documentos() {
       const up = await supabase.storage.from('documentos').upload(path, file);
       if (up.error) throw up.error;
       const { error } = await supabase.from('documentos').insert({
-        tipo_documental: tipo,
-        nombre: file.name,
-        storage_path: path,
-        mime: file.type,
-        tamano: file.size,
-        empresa_id: empresaId || null,
-        subido_por: perfil?.id ?? null,
+        tipo_documental: tipo, nombre: file.name, storage_path: path, mime: file.type,
+        tamano: file.size, empresa_id: empresaId || null, subido_por: perfil?.id ?? null,
       });
       if (error) throw error;
     },
@@ -102,7 +153,72 @@ export default function Documentos() {
 
   return (
     <div>
-      <EncabezadoPagina titulo="Gestión documental" descripcion={`${docs.length} archivos`} />
+      <EncabezadoPagina
+        titulo="Gestión documental"
+        descripcion={`${docs.length} archivos`}
+        accion={esMesaEntrada && <Boton onClick={() => setModalDeriv(true)}>+ Registrar y derivar</Boton>}
+      />
+
+      {/* Mis derivaciones pendientes (alerta al iniciar sesión) */}
+      {misPendientes.length > 0 && (
+        <div className="bg-white rounded-2xl card-elev border-l-4 border-[var(--brand)] p-4 mb-6">
+          <h2 className="font-semibold text-slate-800 mb-3">📥 Tenés {misPendientes.length} documentación(es) pendiente(s) de recepción</h2>
+          <div className="space-y-2">
+            {misPendientes.map((d) => (
+              <div key={d.id} className="flex items-center gap-3 text-sm bg-slate-50 rounded-lg px-3 py-2">
+                <div className="flex-1">
+                  <span className="font-medium text-slate-800">{d.descripcion}</span>
+                  {d.tipo_documental && <span className="text-slate-500"> · {d.tipo_documental}</span>}
+                  <div className="text-xs text-slate-500">
+                    Derivó {usrNom(d.de_usuario)} · {new Date(d.fecha).toLocaleString('es-AR')}
+                    {d.expediente_id && ` · Exp. ${expNom(d.expediente_id)}`}
+                    {d.empresa_id && ` · ${empNom(d.empresa_id)}`}
+                    {d.nota && ` · "${d.nota}"`}
+                  </div>
+                </div>
+                <Boton variante="secundario" onClick={() => recibir.mutate(d.id)} disabled={recibir.isPending}>Marcar recibida</Boton>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Movimientos de mesa de entrada (todos los ven) */}
+      {derivaciones.length > 0 && (
+        <div className="bg-white rounded-xl shadow-sm p-4 mb-6">
+          <h2 className="font-medium text-slate-700 mb-3">Documentación derivada (mesa de entrada)</h2>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="bg-slate-50 text-slate-500 text-left">
+                <tr>
+                  <th className="px-3 py-2 font-medium">Fecha</th>
+                  <th className="px-3 py-2 font-medium">Documentación</th>
+                  <th className="px-3 py-2 font-medium">Derivó</th>
+                  <th className="px-3 py-2 font-medium">Para</th>
+                  <th className="px-3 py-2 font-medium">Expediente / Empresa</th>
+                  <th className="px-3 py-2 font-medium">Estado</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {derivaciones.slice(0, 15).map((d) => (
+                  <tr key={d.id} className="hover:bg-slate-50">
+                    <td className="px-3 py-2 text-slate-500 whitespace-nowrap">{new Date(d.fecha).toLocaleDateString('es-AR')}</td>
+                    <td className="px-3 py-2 text-slate-800">{d.descripcion}{d.tipo_documental && <span className="text-slate-400"> · {d.tipo_documental}</span>}</td>
+                    <td className="px-3 py-2 text-slate-600">{usrNom(d.de_usuario)}</td>
+                    <td className="px-3 py-2 text-slate-600">{usrNom(d.a_usuario)}</td>
+                    <td className="px-3 py-2 text-slate-600">{d.expediente_id ? `Exp. ${expNom(d.expediente_id)}` : empNom(d.empresa_id)}</td>
+                    <td className="px-3 py-2">
+                      {d.estado === 'pendiente'
+                        ? <span className="text-xs px-2 py-0.5 rounded-full bg-amber-100 text-amber-700">Pendiente</span>
+                        : <span className="text-xs px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700">Recibida</span>}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
 
       {puedeEditar && (
         <div className="bg-white rounded-xl shadow-sm p-4 mb-6">
@@ -169,6 +285,80 @@ export default function Documentos() {
           </tbody>
         </table>
       </div>
+
+      {/* Modal: registrar ingreso y derivar */}
+      <ModalDerivar
+        abierto={modalDeriv} onCerrar={() => setModalDeriv(false)}
+        empresas={empresas} usuarios={usuarios.filter((u) => u.id !== perfil?.id)} expedientes={expedientes}
+        miId={perfil?.id ?? ''} onListo={() => { setModalDeriv(false); qc.invalidateQueries({ queryKey: ['derivaciones'] }); }}
+      />
     </div>
+  );
+}
+
+function ModalDerivar({
+  abierto, onCerrar, empresas, usuarios, expedientes, miId, onListo,
+}: {
+  abierto: boolean; onCerrar: () => void;
+  empresas: Empresa[]; usuarios: UsuarioMin[]; expedientes: ExpedienteMin[]; miId: string; onListo: () => void;
+}) {
+  const [form, setForm] = useState({ tipo_documental: TIPOS_DOCUMENTALES[0], descripcion: '', a_usuario: '', empresa_id: '', expediente_id: '', nota: '' });
+
+  const crear = useMutation({
+    mutationFn: async () => {
+      const { error } = await supabase.from('derivaciones').insert({
+        tipo_documental: form.tipo_documental, descripcion: form.descripcion, a_usuario: form.a_usuario,
+        de_usuario: miId, empresa_id: form.empresa_id || null, expediente_id: form.expediente_id || null,
+        nota: form.nota || null,
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => { setForm({ tipo_documental: TIPOS_DOCUMENTALES[0], descripcion: '', a_usuario: '', empresa_id: '', expediente_id: '', nota: '' }); onListo(); },
+  });
+
+  return (
+    <Modal titulo="Registrar y derivar documentación" abierto={abierto} onCerrar={onCerrar}>
+      <form onSubmit={(e: FormEvent) => { e.preventDefault(); if (form.descripcion.trim() && form.a_usuario) crear.mutate(); }} className="space-y-4">
+        <Campo label="Descripción de la documentación">
+          <input className={inputCls} required placeholder="Ej: Planos de obra, Nota de pronto despacho…" value={form.descripcion}
+            onChange={(e) => setForm({ ...form, descripcion: e.target.value })} />
+        </Campo>
+        <div className="grid grid-cols-2 gap-4">
+          <Campo label="Tipo documental">
+            <select className={inputCls} value={form.tipo_documental} onChange={(e) => setForm({ ...form, tipo_documental: e.target.value })}>
+              {TIPOS_DOCUMENTALES.map((t) => <option key={t}>{t}</option>)}
+            </select>
+          </Campo>
+          <Campo label="Derivar a">
+            <select className={inputCls} required value={form.a_usuario} onChange={(e) => setForm({ ...form, a_usuario: e.target.value })}>
+              <option value="">Elegí un agente…</option>
+              {usuarios.map((u) => <option key={u.id} value={u.id}>{u.nombre}</option>)}
+            </select>
+          </Campo>
+        </div>
+        <div className="grid grid-cols-2 gap-4">
+          <Campo label="Empresa (opcional)">
+            <select className={inputCls} value={form.empresa_id} onChange={(e) => setForm({ ...form, empresa_id: e.target.value })}>
+              <option value="">Sin asociar</option>
+              {empresas.map((e) => <option key={e.id} value={e.id}>{e.razon_social}</option>)}
+            </select>
+          </Campo>
+          <Campo label="Expediente (opcional)">
+            <select className={inputCls} value={form.expediente_id} onChange={(e) => setForm({ ...form, expediente_id: e.target.value })}>
+              <option value="">Sin asociar</option>
+              {expedientes.map((x) => <option key={x.id} value={x.id}>{x.sigla ? x.sigla + ' ' : ''}{x.numero}/{x.anio}</option>)}
+            </select>
+          </Campo>
+        </div>
+        <Campo label="Nota (opcional)">
+          <textarea className={inputCls} rows={2} value={form.nota} onChange={(e) => setForm({ ...form, nota: e.target.value })} />
+        </Campo>
+        {crear.isError && <p className="text-sm text-red-600">No se pudo registrar la derivación.</p>}
+        <div className="flex justify-end gap-2 pt-2">
+          <Boton type="button" variante="secundario" onClick={onCerrar}>Cancelar</Boton>
+          <Boton type="submit" disabled={crear.isPending || !form.descripcion.trim() || !form.a_usuario}>{crear.isPending ? 'Registrando…' : 'Registrar y derivar'}</Boton>
+        </div>
+      </form>
+    </Modal>
   );
 }
