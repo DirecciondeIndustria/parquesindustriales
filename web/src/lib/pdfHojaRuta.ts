@@ -41,11 +41,10 @@ const VERDE:   [number, number, number] = [22, 163, 74];
 const GRIS:    [number, number, number] = [148, 163, 184];
 
 export async function exportarHojaRuta(exp: Expediente, etapas: Etapa[], subs: SubTramite[], meta: Meta) {
-  const doc = new jsPDF({ unit: 'mm', format: 'a4' });
-  const W = 210;
-  const M = 16;
-  let y = 16;
   const logo = await cargarLogo();
+  const W = 216, H = 330, M = 16;                 // Tamaño OFICIO (mm)
+  const doc = new jsPDF({ unit: 'mm', format: [W, H] });
+  let y = 0;
 
   const colorEstado = (e: Etapa): [number, number, number] =>
     e.estado === 'completada' ? VERDE : e.estado === 'en_curso' ? AZUL : GRIS;
@@ -62,28 +61,33 @@ export async function exportarHojaRuta(exp: Expediente, etapas: Etapa[], subs: S
     }
   };
 
-  // ── Encabezado: logo centrado sobre blanco (Brandbook) ──
-  let hb = 12;   // borde inferior del bloque del logo
-  if (logo) {
-    const maxW = 110, maxH = 18;
-    let w = maxW, h = (logo.h / logo.w) * maxW;
-    if (h > maxH) { h = maxH; w = (logo.w / logo.h) * maxH; }
-    doc.addImage(logo.dataUrl, 'PNG', (W - w) / 2, 8, w, h);
-    hb = 8 + h + 3;
-  } else {
-    doc.setFont('helvetica', 'bold').setFontSize(15).setTextColor(...NARANJA);
-    doc.text('SIGPIP', W / 2, 14, { align: 'center' });
-    hb = 18;
-  }
-  doc.setDrawColor(...NARANJA).setLineWidth(0.6).line(M, hb, W - M, hb);
-  doc.setFont('helvetica', 'normal').setFontSize(8).setTextColor(110);
-  doc.text('Dirección de Industria · Ministerio de Producción · Provincia del Chubut', W / 2, hb + 5, { align: 'center' });
-  doc.setFontSize(7).setTextColor(140);
-  doc.text(`Generado: ${new Date().toLocaleString('es-AR')}`, W - M, hb + 5, { align: 'right' });
+  // Encabezado con el logo centrado (se dibuja en CADA página). Devuelve la
+  // coordenada Y donde puede empezar el contenido.
+  const encabezado = (): number => {
+    let hb = 12;
+    if (logo) {
+      const maxW = 110, maxH = 18;
+      let w = maxW, h = (logo.h / logo.w) * maxW;
+      if (h > maxH) { h = maxH; w = (logo.w / logo.h) * maxH; }
+      doc.addImage(logo.dataUrl, 'PNG', (W - w) / 2, 8, w, h);
+      hb = 8 + h + 3;
+    } else {
+      doc.setFont('helvetica', 'bold').setFontSize(15).setTextColor(...NARANJA);
+      doc.text('SIGPIP', W / 2, 14, { align: 'center' });
+      hb = 18;
+    }
+    doc.setDrawColor(...NARANJA).setLineWidth(0.6).line(M, hb, W - M, hb);
+    doc.setFont('helvetica', 'normal').setFontSize(8).setTextColor(110);
+    doc.text('Dirección de Industria · Ministerio de Producción · Provincia del Chubut', W / 2, hb + 5, { align: 'center' });
+    return hb + 12;
+  };
 
-  y = hb + 14;
-  doc.setTextColor(20);
-  doc.setFont('helvetica', 'bold').setFontSize(16);
+  // Salto de página que vuelve a dibujar el encabezado.
+  const saltar = (limite: number) => { if (y > limite) { doc.addPage(); y = encabezado(); } };
+
+  // ── Página 1 ──
+  y = encabezado();
+  doc.setTextColor(20).setFont('helvetica', 'bold').setFontSize(16);
   doc.text(`Hoja de Ruta — Expediente N° ${exp.numero}/${exp.anio}${exp.sigla ? ` ${exp.sigla}` : ''}`, M, y);
   y += 8;
 
@@ -112,7 +116,7 @@ export async function exportarHojaRuta(exp: Expediente, etapas: Etapa[], subs: S
     y += obs.length * 5 + 2;
   }
 
-  // ── Resumen de avance (con barra de progreso) ──
+  // ── Resumen de avance (con barra) ──
   const total = etapas.length;
   const hechas = etapas.filter((e) => e.estado === 'completada').length;
   const pct = total ? Math.round((hechas / total) * 100) : 0;
@@ -130,13 +134,11 @@ export async function exportarHojaRuta(exp: Expediente, etapas: Etapa[], subs: S
   doc.text('Hoja de ruta', M, y); y += 6;
 
   for (const et of etapas.sort((a, b) => a.orden - b.orden)) {
-    if (y > 268) { doc.addPage(); y = 20; }
+    saltar(305);
     const col = colorEstado(et);
-    // Punto de estado del hito.
     doc.setFillColor(...col).circle(M + 1.5, y - 1.4, 1.5, 'F');
     doc.setFont('helvetica', 'bold').setFontSize(10).setTextColor(...col);
     doc.text(`${et.orden}. ${et.nombre}`, M + 6, y);
-    // Etiqueta de estado a la derecha.
     doc.setFont('helvetica', 'bold').setFontSize(7.5);
     doc.text(`[${etiqueta(et)}]`, W - M, y, { align: 'right' });
     const fechas = [
@@ -152,28 +154,26 @@ export async function exportarHojaRuta(exp: Expediente, etapas: Etapa[], subs: S
 
     const reqs = subs.filter((s) => s.expediente_etapa_id === et.id);
     for (const r of reqs) {
-      if (y > 282) { doc.addPage(); y = 20; }
+      saltar(316);
       casilla(M + 7, y, r.completado);
       doc.setFont('helvetica', 'normal').setFontSize(9).setTextColor(r.completado ? 110 : 60);
       doc.text(`${r.nombre}${r.obligatorio ? ' *' : ''}`, M + 12, y);
       const foja = fmtFoja(r.foja_desde, r.foja_hasta);
-      if (foja) {
-        doc.setTextColor(130);
-        doc.text(foja, W - M, y, { align: 'right' });
-      }
+      if (foja) { doc.setTextColor(130); doc.text(foja, W - M, y, { align: 'right' }); }
       y += 5;
     }
     y += 2.5;
   }
 
-  // ── Pie ──
+  // ── Pie en todas las hojas ──
   const pages = doc.getNumberOfPages();
+  const generado = `Generado: ${new Date().toLocaleString('es-AR')}`;
   for (let i = 1; i <= pages; i++) {
     doc.setPage(i);
-    doc.setDrawColor(...AMBAR).setLineWidth(0.4).line(M, 286, W - M, 286);
+    doc.setDrawColor(...AMBAR).setLineWidth(0.4).line(M, H - 12, W - M, H - 12);
     doc.setFont('helvetica', 'normal').setFontSize(8).setTextColor(150);
-    doc.text('* requisito obligatorio · Documento generado por SIGPIP', M, 291);
-    doc.text(`Página ${i} de ${pages}`, W - M, 291, { align: 'right' });
+    doc.text(`* requisito obligatorio · ${generado}`, M, H - 7);
+    doc.text(`Página ${i} de ${pages}`, W - M, H - 7, { align: 'right' });
   }
 
   doc.save(`HojaRuta_Exp_${exp.numero}-${exp.anio}.pdf`);
