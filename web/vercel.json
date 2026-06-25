@@ -1,6 +1,6 @@
 {
   "rewrites": [
-    { "source": "/inspecciones", "destination": "/inspecciones/index.html" },
-    { "source": "/((?!inspecciones).*)", "destination": "/index.html" }
+    { "source": "/actas-inspeccion", "destination": "/actas-inspeccion/index.html" },
+    { "source": "/((?!actas-inspeccion).*)", "destination": "/index.html" }
   ]
 }

@@ -3,8 +3,11 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-<meta name="theme-color" content="#0f2c49">
+<meta name="theme-color" content="#8f3416">
 <title>Inspecciones · Parques Industriales</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Public+Sans:ital,wght@0,400;0,500;0,600;0,700;0,800;1,400&display=swap" rel="stylesheet">
 <script src="vendor/signature_pad.umd.min.js"></script>
 <script src="vendor/jspdf.umd.min.js"></script>
 <script src="vendor/supabase.min.js"></script>
@@ -12,9 +15,10 @@
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
 :root{
   /* Paleta */
-  --navy-900:#0a1f35;--navy-800:#0f2c49;--navy-700:#173a5e;--navy-600:#21507d;
-  --primary:#173a5e;--primary-ink:#0f2c49;
-  --accent:#e8550d;--accent-600:#cc4709;--accent-tint:#fff1e9;
+  /* Paleta unificada con SIGPIP (Marca Chubut): estructura marrón + acento naranja */
+  --navy-900:#5e220f;--navy-800:#6f2912;--navy-700:#8f3416;--navy-600:#b8431d;
+  --primary:#8f3416;--primary-ink:#6f2912;
+  --accent:#ff682c;--accent-600:#e85420;--accent-tint:#fff1e7;
   --ink:#15202e;--ink-soft:#33455a;--muted:#64748b;--muted-2:#94a3b8;
   --line:#e6ebf2;--line-2:#d4dde8;--bg:#eef2f7;--card:#ffffff;
   --ok:#15803d;--ok-tint:#e9f7ef;--warn:#b45309;--warn-tint:#fef6e7;--danger:#dc2626;
@@ -32,7 +36,7 @@
 }
 html,body{height:100%}
 body{
-  font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',sans-serif;
+  font-family:'Public Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',sans-serif;
   background:var(--bg);color:var(--ink);
   font-size:15px;line-height:1.5;-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility;
 }
@@ -41,7 +45,7 @@ body{
 /* ═══════════ HEADER ═══════════ */
 #appHeader{
   position:sticky;top:0;z-index:200;
-  background:linear-gradient(160deg,var(--navy-700) 0%,var(--navy-900) 100%);
+  background:linear-gradient(160deg,#8f3416 0%,#b8431d 52%,#d24f1f 100%);
   color:#fff;padding:calc(11px + env(safe-area-inset-top)) 16px 0;
   box-shadow:0 1px 0 rgba(255,255,255,.05),0 6px 22px rgba(10,31,53,.35);
 }
