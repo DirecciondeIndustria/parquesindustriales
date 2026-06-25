@@ -43,7 +43,7 @@ const fmtExpStr = (n: number, a: number, s: string | null) => `${n}/${a}${s ? ` 
 export default function Documentos() {
   const qc = useQueryClient();
   const { perfil } = useAuth();
-  const { puedeEditar } = usePermisos();
+  const { puedeEditar, esAdmin } = usePermisos();
   const fileRef = useRef<HTMLInputElement>(null);
   const [solapa, setSolapa] = useState<'entrada' | 'salida'>('entrada');
   const [tipo, setTipo] = useState(TIPOS_DOCUMENTALES[0]);
@@ -121,6 +121,9 @@ export default function Documentos() {
 
   const misPendientes = derivaciones.filter((d) => d.a_usuario === perfil?.id && d.estado === 'pendiente');
   const entradas = movimientos.filter((m) => m.sentido === 'entrada');
+  // La mesa de entrada (rol archivo) o admin/director pueden registrar entradas
+  // — coincide con la RLS de movimientos_mesa (es_mesa_entrada() or es_admin()).
+  const puedeRegistrar = esMesaEntrada || esAdmin;
 
   const recibir = useMutation({
     mutationFn: async (id: string) => {
@@ -188,7 +191,7 @@ export default function Documentos() {
       <EncabezadoPagina
         titulo="Mesa de Entradas y Salidas"
         descripcion="Registro de ingresos y egresos de la oficina"
-        accion={esMesaEntrada && solapa === 'entrada' && <Boton onClick={() => setModalEntrada(true)}>+ Registrar entrada</Boton>}
+        accion={puedeRegistrar && solapa === 'entrada' && <Boton onClick={() => setModalEntrada(true)}>+ Registrar entrada</Boton>}
       />
 
       {/* Solapas Entrada / Salida */}
@@ -257,7 +260,7 @@ export default function Documentos() {
                       {m.expediente_id ? `Exp. ${expNom(m.expediente_id)}` : (m.empresa_id ? empNom(m.empresa_id) : (m.datos?.razon_social ?? '—'))}
                     </td>
                     <td className="px-4 py-3 text-right whitespace-nowrap">
-                      {(esMesaEntrada || puedeEditar) && (
+                      {puedeRegistrar && (
                         <button onClick={() => { if (confirm('¿Eliminar esta entrada?')) eliminarEntrada.mutate(m.id); }} className="text-red-600 hover:underline">Eliminar</button>
                       )}
                     </td>
