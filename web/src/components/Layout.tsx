@@ -89,9 +89,18 @@ export default function Layout() {
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M3 6h18M3 12h18M3 18h18" /></svg>
           </button>
 
-          {/* Logo institucional centrado (el wordmark se invierte a blanco en modo oscuro) */}
-          <div className="absolute left-1/2 -translate-x-1/2 pointer-events-none">
-            <img src="/logo.png" alt="Ministerio de Producción · Gobierno del Chubut" className="logo-header hidden sm:block h-7 object-contain" />
+          {/* Logo institucional centrado: gráficos (barra + silueta) a color siempre;
+              solo el texto se invierte a blanco en modo oscuro. */}
+          <div className="absolute left-1/2 -translate-x-1/2 pointer-events-none flex items-center">
+            <div className="hidden sm:flex items-center gap-2.5" aria-label="Ministerio de Producción · Gobierno del Chubut">
+              <span className="h-8 w-[3px] rounded-full shrink-0" style={{ background: 'linear-gradient(180deg,#ffc815 0%,#ff682c 50%,#21708c 100%)' }} />
+              <div className="leading-none text-left">
+                <div className="logo-text text-[9px] font-medium tracking-wide">Ministerio de</div>
+                <div className="logo-text text-[15px] font-extrabold tracking-tight leading-tight">Producción</div>
+              </div>
+              <img src="/logo-silueta.png" alt="" className="h-8 w-8 object-contain mx-1" />
+              <div className="logo-text text-[13px] font-extrabold leading-[1.05] text-left">Gobierno<br />del Chubut</div>
+            </div>
             <img src="/logo-silueta.png" alt="Gobierno del Chubut" className="sm:hidden h-7 w-7 object-contain" />
           </div>
 
