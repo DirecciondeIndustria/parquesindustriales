@@ -3,7 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
 import { Modal, Boton, inputCls, EncabezadoPagina, Skeleton } from '../components/ui';
 import { fmtFecha } from '../lib/fechas';
-import { exportarActaPdf } from '../lib/pdfActa';
+import { renderActaPdf } from '../lib/pdfActaOficial';
 
 // Acta completa cargada desde la app de inspecciones del celular.
 // Tabla `actas_inspeccion` (ver migración 0024). Vista de SOLO LECTURA.
@@ -120,7 +120,7 @@ export default function Actas() {
         {sel && (
           <>
             <div className="flex justify-end mb-3">
-              <Boton onClick={() => exportarActaPdf(sel)}>Descargar PDF</Boton>
+              <Boton onClick={() => renderActaPdf({ actaNum: sel.numero, actaYear: sel.anio, ...(sel.datos ?? {}), photos: sel.fotos ?? [], sig1: sel.sig1, sig2: sel.sig2, sig3: sel.sig3 })}>Descargar PDF</Boton>
             </div>
             <DetalleActa a={sel} />
           </>
