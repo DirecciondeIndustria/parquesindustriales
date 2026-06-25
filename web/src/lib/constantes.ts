@@ -20,6 +20,7 @@ export const TIPOS_INSTRUMENTO = ['Decreto', 'Resolución', 'Disposición', 'Cir
 // Motivo por el que reingresa un expediente.
 export const MOTIVOS_INGRESO_EXP = [
   { valor: 'recaratulacion', label: 'Recaratulación (nuevo número/año/letra)' },
+  { valor: 'devolucion', label: 'Devolución' },
   { valor: 'nuevo_cuerpo', label: 'Formación de otro cuerpo' },
 ] as const;
 

@@ -54,13 +54,9 @@ export default function Documentos() {
   const qc = useQueryClient();
   const { perfil } = useAuth();
   const { puedeEditar, esAdmin } = usePermisos();
-  const fileRef = useRef<HTMLInputElement>(null);
   const [solapa, setSolapa] = useState<'entrada' | 'salida'>('entrada');
-  const [tipo, setTipo] = useState(TIPOS_DOCUMENTALES[0]);
-  const [empresaId, setEmpresaId] = useState('');
   const [filtroTipo, setFiltroTipo] = useState('');
   const [filtroEmp, setFiltroEmp] = useState('');
-  const [error, setError] = useState('');
   const [modalEntrada, setModalEntrada] = useState(false);
   const [derivarMov, setDerivarMov] = useState<Movimiento | null>(null);
 
@@ -143,21 +139,6 @@ export default function Documentos() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ['derivaciones'] }),
   });
 
-  const subir = useMutation({
-    mutationFn: async (file: File) => {
-      const path = `${empresaId || 'general'}/${Date.now()}-${file.name}`;
-      const up = await supabase.storage.from('documentos').upload(path, file);
-      if (up.error) throw up.error;
-      const { error } = await supabase.from('documentos').insert({
-        tipo_documental: tipo, nombre: file.name, storage_path: path, mime: file.type,
-        tamano: file.size, empresa_id: empresaId || null, subido_por: perfil?.id ?? null,
-      });
-      if (error) throw error;
-    },
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['documentos'] }); if (fileRef.current) fileRef.current.value = ''; },
-    onError: () => setError('No se pudo subir el archivo.'),
-  });
-
   const eliminar = useMutation({
     mutationFn: async (d: Documento) => {
       await supabase.storage.from('documentos').remove([d.storage_path]);
@@ -176,13 +157,7 @@ export default function Documentos() {
   });
 
   async function descargar(d: Documento) {
-    if (!(await abrirArchivo(d.storage_path))) setError('No se pudo generar el enlace.');
-  }
-
-  function onFile(e: React.ChangeEvent<HTMLInputElement>) {
-    setError('');
-    const f = e.target.files?.[0];
-    if (f) subir.mutate(f);
+    if (!(await abrirArchivo(d.storage_path))) alert('No se pudo generar el enlace.');
   }
 
   const visibles = docs.filter((d) =>
@@ -327,25 +302,6 @@ export default function Documentos() {
             </div>
           )}
 
-          {puedeEditar && (
-            <div className="bg-white rounded-xl shadow-sm p-4 mb-6">
-              <h2 className="font-medium text-slate-700 mb-3">Subir archivo digital (general)</h2>
-              <div className="grid md:grid-cols-3 gap-3">
-                <select className={inputCls} value={tipo} onChange={(e) => setTipo(e.target.value)}>
-                  {TIPOS_DOCUMENTALES.map((t) => <option key={t}>{t}</option>)}
-                </select>
-                <select className={inputCls} value={empresaId} onChange={(e) => setEmpresaId(e.target.value)}>
-                  <option value="">Sin empresa asociada</option>
-                  {empresas.map((e) => <option key={e.id} value={e.id}>{e.razon_social}</option>)}
-                </select>
-                <input ref={fileRef} type="file" onChange={onFile} disabled={subir.isPending}
-                  className="text-sm file:mr-3 file:rounded-lg file:border-0 file:bg-[var(--brand)] file:text-white file:px-4 file:py-2" />
-              </div>
-              {subir.isPending && <p className="text-sm text-slate-500 mt-2">Subiendo…</p>}
-              {error && <p className="text-sm text-red-600 mt-2">{error}</p>}
-            </div>
-          )}
-
           <div className="flex flex-wrap gap-3 mb-4">
             <select className={`${inputCls} max-w-xs`} value={filtroTipo} onChange={(e) => setFiltroTipo(e.target.value)}>
               <option value="">Todos los tipos</option>
@@ -428,9 +384,14 @@ function resumenEntrada(m: Movimiento): string {
     case 'Plano':
       return `Plano de ${d.subtipo === 'obra' ? 'obra' : 'mensura'}`;
     case 'Expediente': {
-      const motivo = d.motivo === 'recaratulacion' ? 'Recaratulación' : 'Formación de otro cuerpo';
+      const motivo = d.motivo === 'recaratulacion' ? 'Recaratulación'
+        : d.motivo === 'devolucion' ? 'Devolución'
+        : 'Formación de otro cuerpo';
       if (d.motivo === 'recaratulacion' && d.numero_anterior) {
         return `${motivo}: ${d.numero_anterior} → ${d.numero_nuevo}`;
+      }
+      if (d.motivo === 'nuevo_cuerpo' && d.cantidad_cuerpos) {
+        return `${motivo} (${d.cantidad_cuerpos} cuerpo/s)`;
       }
       return motivo;
     }
@@ -471,10 +432,11 @@ function ModalEntrada({
   const [expBusqueda, setExpBusqueda] = useState('');
   const [expId, setExpId] = useState('');
   const [expEmpresaId, setExpEmpresaId] = useState('');
-  const [motivoExp, setMotivoExp] = useState<'recaratulacion' | 'nuevo_cuerpo'>('recaratulacion');
+  const [motivoExp, setMotivoExp] = useState<'recaratulacion' | 'devolucion' | 'nuevo_cuerpo'>('recaratulacion');
   const [nuevoNumero, setNuevoNumero] = useState('');
   const [nuevoAnio, setNuevoAnio] = useState('');
   const [nuevaSigla, setNuevaSigla] = useState('');
+  const [cantidadCuerpos, setCantidadCuerpos] = useState('');
   // Notificación de Personal
   const [instrumento, setInstrumento] = useState(TIPOS_INSTRUMENTO[0]);
   const [instrNumero, setInstrNumero] = useState('');
@@ -505,7 +467,7 @@ function ModalEntrada({
     setRemitente(''); setMotivoNota('');
     setSubtipoPlano('obra');
     setExpBusqueda(''); setExpId(''); setExpEmpresaId(''); setMotivoExp('recaratulacion');
-    setNuevoNumero(''); setNuevoAnio(''); setNuevaSigla('');
+    setNuevoNumero(''); setNuevoAnio(''); setNuevaSigla(''); setCantidadCuerpos('');
     setInstrumento(TIPOS_INSTRUMENTO[0]); setInstrNumero(''); setInstrAnio(''); setInstrSigla('');
     setDestinatario(''); setFechaEmision(''); setDomicilio(''); setRecibido(false); setReceptor(''); setFechaRecepcion('');
     setProyEmpresaId(''); setProyRazon('');
@@ -538,6 +500,9 @@ function ModalEntrada({
             });
             if (rpcErr) throw rpcErr;
             datos.numero_nuevo = fmtExpStr(nNum, nAnio, nuevaSigla.trim() || null);
+          }
+          if (motivoExp === 'nuevo_cuerpo') {
+            datos.cantidad_cuerpos = parseInt(cantidadCuerpos, 10) || null;
           }
           break;
         }
@@ -592,6 +557,7 @@ function ModalEntrada({
       case 'Expediente':
         if (!expId) return false;
         if (motivoExp === 'recaratulacion') return nuevoNumero.trim() !== '' && nuevoAnio.trim() !== '';
+        if (motivoExp === 'nuevo_cuerpo') return cantidadCuerpos.trim() !== '';
         return true;
       case 'Notificación de Personal': return instrNumero.trim() !== '' && instrAnio.trim() !== '';
       case 'Correspondencia':
@@ -683,6 +649,12 @@ function ModalEntrada({
                   </Campo>
                 </div>
               </div>
+            )}
+            {motivoExp === 'nuevo_cuerpo' && (
+              <Campo label="N° de cuerpos que ingresan">
+                <input className={inputCls} inputMode="numeric" value={cantidadCuerpos}
+                  onChange={(e) => setCantidadCuerpos(e.target.value.replace(/[^0-9]/g, ''))} placeholder="Ej: 2" />
+              </Campo>
             )}
           </>
         )}
