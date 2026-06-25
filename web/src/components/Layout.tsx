@@ -84,10 +84,19 @@ export default function Layout() {
       )}
 
       <div className="flex-1 flex flex-col min-w-0">
-        <header className="glass sticky top-0 z-10 px-4 py-3 flex items-center justify-between border-b border-slate-200/70 shadow-sm">
+        <header className="glass sticky top-0 z-10 px-4 py-3 flex items-center justify-between border-b border-slate-200/70 shadow-sm relative">
           <button className="md:hidden text-slate-600 p-1" onClick={() => setAbierto(true)} aria-label="Abrir menú">
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M3 6h18M3 12h18M3 18h18" /></svg>
           </button>
+
+          {/* Logo institucional centrado (chip blanco: legible también en modo oscuro) */}
+          <div className="absolute left-1/2 -translate-x-1/2 pointer-events-none">
+            <div className="bg-white rounded-lg px-3 py-1.5 shadow-sm ring-1 ring-slate-200/70">
+              <img src="/logo.png" alt="Ministerio de Producción · Gobierno del Chubut" className="hidden sm:block h-7 object-contain" />
+              <img src="/logo-silueta.png" alt="Gobierno del Chubut" className="sm:hidden h-7 w-7 object-contain" />
+            </div>
+          </div>
+
           <div className="flex-1" />
           <div className="flex items-center gap-3">
             <ThemeToggle />
