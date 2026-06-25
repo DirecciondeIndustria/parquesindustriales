@@ -12,6 +12,7 @@ import ExpedienteDetalle from './pages/ExpedienteDetalle';
 import Flujos from './pages/Flujos';
 import Documentos from './pages/Documentos';
 import Inspecciones from './pages/Inspecciones';
+import Actas from './pages/Actas';
 import Escrituraciones from './pages/Escrituraciones';
 import Archivo from './pages/Archivo';
 import Alertas from './pages/Alertas';
@@ -61,6 +62,7 @@ export default function App() {
           <Route path="flujos" element={<Flujos />} />
           <Route path="documentos" element={<Documentos />} />
           <Route path="inspecciones" element={<Inspecciones />} />
+          <Route path="actas" element={<Actas />} />
           <Route path="escrituraciones" element={<Escrituraciones />} />
           <Route path="archivo" element={<Archivo />} />
           <Route path="alertas" element={<Alertas />} />

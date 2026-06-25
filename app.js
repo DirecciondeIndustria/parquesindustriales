@@ -15,6 +15,10 @@ let _draftTimer = null;      // debounce de autoguardado
 // ── DB LAYER (Supabase o local) ──────────────────────────────────
 let supa = null;
 let ONLINE = false;
+// Tabla destino de las actas (compartida con el SIGPIP). Por defecto la
+// tabla histórica 'inspecciones'; en la integración se usa 'actas_inspeccion'.
+const TABLA = (window.APP_CONFIG && window.APP_CONFIG.TABLA_ACTAS) || 'inspecciones';
+let CURRENT_USER = null; // { id, email, nombre, rol } del inspector logueado
 
 function initDB() {
   const c = window.APP_CONFIG || {};
@@ -32,7 +36,7 @@ function initDB() {
 
 async function dbList() {
   if (ONLINE) {
-    const { data, error } = await supa.from('inspecciones')
+    const { data, error } = await supa.from(TABLA)
       .select('*').order('created_at', { ascending: false });
     if (error) { console.error(error); toast('Error al cargar historial'); return localList(); }
     return data || [];
@@ -58,7 +62,7 @@ function setStartNumber(anio, n) {
 async function dbNextNumero(anio) {
   let next = 1;
   if (ONLINE) {
-    const { data, error } = await supa.from('inspecciones')
+    const { data, error } = await supa.from(TABLA)
       .select('numero').eq('anio', anio).order('numero', { ascending: false }).limit(1);
     if (error) { console.error(error); }
     next = ((data && data[0]) ? data[0].numero : 0) + 1;
@@ -73,11 +77,11 @@ async function dbNextNumero(anio) {
 async function dbSave(record) {
   if (ONLINE) {
     if (record.id) {
-      const { error } = await supa.from('inspecciones').update(record).eq('id', record.id);
+      const { error } = await supa.from(TABLA).update(record).eq('id', record.id);
       if (error) throw error;
       return record.id;
     } else {
-      const { data, error } = await supa.from('inspecciones').insert(record).select('id').single();
+      const { data, error } = await supa.from(TABLA).insert(record).select('id').single();
       if (error) throw error;
       return data.id;
     }
@@ -98,7 +102,7 @@ async function dbSave(record) {
 
 async function dbDelete(id) {
   if (ONLINE && !String(id).startsWith('loc_')) {
-    const { error } = await supa.from('inspecciones').delete().eq('id', id);
+    const { error } = await supa.from(TABLA).delete().eq('id', id);
     if (error) throw error;
     return;
   }
@@ -106,11 +110,107 @@ async function dbDelete(id) {
   localStorage.setItem('inspecciones_list', JSON.stringify(list));
 }
 
+// ── AUTENTICACIÓN (inspectores del SIGPIP) ───────────────────────
+// La app comparte el Supabase del SIGPIP. Los inspectores inician sesión
+// con el mismo usuario/clave que tienen en el SIGPIP (rol 'inspector').
+async function ensureAuth() {
+  const cfg = window.APP_CONFIG || {};
+  if (!ONLINE || !cfg.REQUIERE_LOGIN) return true; // modo local: sin login
+  try {
+    const { data: { session } } = await supa.auth.getSession();
+    if (session) { await loadCurrentUser(); updateUserChip(); return true; }
+  } catch (e) { console.error(e); }
+  showLogin();
+  return false;
+}
+
+async function loadCurrentUser() {
+  try {
+    const { data: { user } } = await supa.auth.getUser();
+    if (!user) { CURRENT_USER = null; return; }
+    let nombre = user.email, rol = null, activo = true;
+    try {
+      const { data } = await supa.from('usuarios')
+        .select('nombre, rol, activo').eq('id', user.id).single();
+      if (data) { nombre = data.nombre || nombre; rol = data.rol; activo = data.activo !== false; }
+    } catch (e) { /* sin fila en usuarios: igual queda autenticado */ }
+    CURRENT_USER = { id: user.id, email: user.email, nombre, rol, activo };
+  } catch (e) { console.error(e); CURRENT_USER = null; }
+}
+
+function showLogin() {
+  const el = document.getElementById('loginScreen');
+  if (el) el.classList.add('show');
+}
+function hideLogin() {
+  const el = document.getElementById('loginScreen');
+  if (el) el.classList.remove('show');
+}
+
+async function doLogin(ev) {
+  if (ev) ev.preventDefault();
+  const email = (document.getElementById('loginEmail').value || '').trim();
+  const pass = document.getElementById('loginPass').value || '';
+  const errBox = document.getElementById('loginError');
+  const btn = document.getElementById('loginBtn');
+  errBox.style.display = 'none';
+  if (!email || !pass) { errBox.textContent = 'Ingresá tu email y contraseña.'; errBox.style.display = 'block'; return; }
+  btn.disabled = true; btn.dataset.label = btn.textContent; btn.textContent = 'Ingresando…';
+  try {
+    const { error } = await supa.auth.signInWithPassword({ email, password: pass });
+    if (error) {
+      errBox.textContent = 'Email o contraseña incorrectos.';
+      errBox.style.display = 'block';
+      return;
+    }
+    await loadCurrentUser();
+    if (CURRENT_USER && CURRENT_USER.activo === false) {
+      await supa.auth.signOut(); CURRENT_USER = null;
+      errBox.textContent = 'Tu usuario está inactivo. Contactá al administrador.';
+      errBox.style.display = 'block';
+      return;
+    }
+    document.getElementById('loginPass').value = '';
+    updateUserChip();
+    hideLogin();
+    await refreshDashboard();
+  } catch (e) {
+    errBox.textContent = 'No se pudo conectar. Revisá tu conexión.';
+    errBox.style.display = 'block';
+  } finally {
+    btn.disabled = false; if (btn.dataset.label) btn.textContent = btn.dataset.label;
+  }
+}
+
+async function logout() {
+  if (!confirm('¿Cerrar sesión?')) return;
+  try { await supa.auth.signOut(); } catch (e) {}
+  CURRENT_USER = null;
+  closeSettings();
+  showLogin();
+}
+
+function updateUserChip() {
+  const block = document.getElementById('sessionBlock');
+  if (!block) return;
+  if (ONLINE && CURRENT_USER) {
+    block.style.display = 'block';
+    const nombre = CURRENT_USER.nombre || CURRENT_USER.email || 'Inspector';
+    document.getElementById('sessUser').textContent = nombre;
+    document.getElementById('sessRol').textContent = CURRENT_USER.rol || 'usuario';
+    document.getElementById('sessAvatar').textContent = (nombre.trim()[0] || 'I').toUpperCase();
+  } else {
+    block.style.display = 'none';
+  }
+}
+
 // ── INIT ─────────────────────────────────────────────────────────
 window.addEventListener('DOMContentLoaded', async () => {
   document.getElementById('hdrLogo').src = window.LOGO_BASE64;
+  const _ll = document.getElementById('loginLogo'); if (_ll) _ll.src = window.LOGO_BASE64;
   initDB();
-  await refreshDashboard();
+  const _authed = await ensureAuth();
+  if (_authed) await refreshDashboard();
   document.getElementById('agentInput').addEventListener('keydown', e => {
     if (e.key === 'Enter') { e.preventDefault(); addAgent(); }
   });
@@ -175,6 +275,7 @@ async function openSettings() {
   document.getElementById('nextNumText').innerHTML =
     `La próxima inspección será la <b>N° ${String(next).padStart(3, '0')}/${year}</b>`;
   renderInspList();
+  updateUserChip();
   document.getElementById('settingsOverlay').classList.add('show');
   document.getElementById('settingsSheet').classList.add('show');
 }
@@ -490,6 +591,11 @@ async function finishForm() {
       sig2: sigStore[2] || null,
       sig3: sigStore[3] || null,
     };
+    // Trazabilidad: qué inspector (usuario del SIGPIP) cargó el acta
+    if (ONLINE && CURRENT_USER) {
+      record.inspector_id = CURRENT_USER.id;
+      record.inspector_nombre = CURRENT_USER.nombre || CURRENT_USER.email || null;
+    }
     // Si estamos editando un acta existente, conservar su id y fecha de creación
     if (editingId) {
       record.id = editingId;
