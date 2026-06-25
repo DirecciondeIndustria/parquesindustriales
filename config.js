@@ -1,20 +1,15 @@
 // ════════════════════════════════════════════════════════════════
-//  CONFIGURACIÓN DE LA PLATAFORMA
-//  Editá estos dos valores con los datos de tu proyecto Supabase.
-//  Instrucciones completas en el archivo SETUP.md
+//  CONFIGURACIÓN — App de Inspecciones (mobile)
+//  Conectada al MISMO proyecto Supabase del SIGPIP. Las actas confirmadas
+//  se guardan en la tabla `actas_inspeccion`; el SIGPIP de escritorio las
+//  muestra de forma informativa. La clave anon es pública (la misma que
+//  usa el frontend del SIGPIP) — RLS protege los datos.
 // ════════════════════════════════════════════════════════════════
 
 window.APP_CONFIG = {
-  // Pegá aquí la URL de tu proyecto (Settings → API → Project URL)
-  SUPABASE_URL: "",
-
-  // Pegá aquí la clave pública "anon" (Settings → API → Project API keys → anon public)
-  SUPABASE_ANON_KEY: "",
-
-  // Cómo avanza la numeración: "anio" = correlativo por año (001/2026, 002/2026...)
+  SUPABASE_URL: "https://ogtwpaxpyjhhcykfptep.supabase.co",
+  SUPABASE_ANON_KEY: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9ndHdwYXhweWpoaGN5a2ZwdGVwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODIxNzkxODYsImV4cCI6MjA5Nzc1NTE4Nn0.4S-FM2A5RH5SwoBc7t8Afwg-C3NHK2X9ATGgrK9VKbc",
+  TABLA_ACTAS: "actas_inspeccion",
+  REQUIERE_LOGIN: true,
   NUMERACION: "anio"
 };
-
-// Si los dos campos de arriba quedan vacíos, la app funciona en MODO LOCAL
-// (guarda las inspecciones solo en este dispositivo). Apenas cargues las
-// credenciales de Supabase, pasa automáticamente a MODO ONLINE con base de datos.

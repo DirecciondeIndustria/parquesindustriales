@@ -509,6 +509,26 @@ input.invalid,textarea.invalid,select.invalid{border-color:var(--danger)!importa
   #mainContent{max-width:900px}
   #navBar,.sheet,.detail-actions{max-width:900px}
 }
+
+/* ═══════════ LOGIN (acceso de inspectores) ═══════════ */
+#loginScreen{position:fixed;inset:0;z-index:800;display:none;align-items:center;justify-content:center;padding:24px;
+  background:linear-gradient(160deg,var(--navy-700) 0%,var(--navy-900) 100%);overflow:auto}
+#loginScreen.show{display:flex}
+.login-card{width:100%;max-width:380px;background:var(--card);border-radius:var(--r-lg);padding:28px 24px 22px;box-shadow:var(--sh-3);text-align:center;animation:cardIn .4s var(--ease-out)}
+.login-logo{height:46px;background:#fff;border-radius:11px;padding:8px 14px;display:inline-flex;align-items:center;margin-bottom:18px;box-shadow:var(--sh-1)}
+.login-logo img{height:30px;display:block}
+.login-card h2{font-size:21px;font-weight:800;letter-spacing:-.02em;margin-bottom:5px}
+.login-sub{font-size:13.5px;color:var(--muted);margin-bottom:20px;line-height:1.5}
+.login-card .field{text-align:left}
+.login-error{background:#fdecec;border:1px solid #f3b9b9;color:#a12020;border-radius:10px;padding:10px 12px;font-size:13px;margin-bottom:12px;text-align:left;line-height:1.45}
+.login-foot{font-size:11px;color:var(--muted-2);margin-top:18px;letter-spacing:.02em}
+
+/* Bloque de sesión en Configuración */
+.sess-row{display:flex;align-items:center;gap:11px;background:#eaf1f9;border-radius:11px;padding:11px 13px;margin-bottom:12px}
+.sess-av{width:38px;height:38px;border-radius:50%;background:var(--primary);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:800;flex-shrink:0;font-size:15px}
+.sess-info{min-width:0;flex:1}
+.sess-info .nm{font-weight:700;font-size:14.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sess-info .rl{font-size:12px;color:var(--muted);text-transform:capitalize}
 </style>
 </head>
 <body>
@@ -933,9 +953,38 @@ input.invalid,textarea.invalid,select.invalid{border-color:var(--danger)!importa
       <button class="btn btn-ghost" onclick="exportCSV()" style="flex:1 1 100%">📊 Exportar a Excel (CSV)</button>
     </div>
   </div>
+  <div class="set-block" id="sessionBlock" style="display:none">
+    <div class="set-title">Sesión</div>
+    <div class="sess-row">
+      <div class="sess-av" id="sessAvatar">I</div>
+      <div class="sess-info">
+        <div class="nm" id="sessUser">—</div>
+        <div class="rl" id="sessRol">—</div>
+      </div>
+    </div>
+    <button class="btn btn-ghost" onclick="logout()" style="width:100%">Cerrar sesión</button>
+  </div>
   <div class="sheet-actions">
     <button class="btn btn-ghost" onclick="closeSettings()">Cerrar</button>
     <button class="btn btn-primary" onclick="saveSettings()">Guardar numeración</button>
+  </div>
+</div>
+
+<!-- LOGIN (acceso de inspectores) -->
+<div id="loginScreen">
+  <div class="login-card">
+    <div class="login-logo"><img id="loginLogo" alt="Ministerio de Producción"></div>
+    <h2>Acceso de Inspectores</h2>
+    <p class="login-sub">Ingresá con tu usuario del SIGPIP para cargar inspecciones.</p>
+    <form onsubmit="doLogin(event)">
+      <div class="field"><label class="field-label">Email</label>
+        <input type="email" id="loginEmail" inputmode="email" autocomplete="username" placeholder="tu.usuario@chubut.gov.ar"></div>
+      <div class="field"><label class="field-label">Contraseña</label>
+        <input type="password" id="loginPass" autocomplete="current-password" placeholder="••••••••"></div>
+      <div class="login-error" id="loginError" style="display:none"></div>
+      <button class="btn btn-primary" id="loginBtn" type="submit" style="width:100%">Ingresar</button>
+    </form>
+    <div class="login-foot">Ministerio de Producción · Gobierno del Chubut</div>
   </div>
 </div>
 

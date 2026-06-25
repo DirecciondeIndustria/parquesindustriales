@@ -14,6 +14,7 @@ export const MODULOS = [
   { to: '/flujos', label: 'Flujos de trámite', icon: 'flujos' },
   { to: '/documentos', label: 'Mesa de Entradas y Salidas', icon: 'documentos' },
   { to: '/inspecciones', label: 'Inspecciones', icon: 'inspecciones' },
+  { to: '/actas', label: 'Actas de inspección', icon: 'inspecciones' },
   { to: '/escrituraciones', label: 'Escrituraciones', icon: 'escrituraciones' },
   { to: '/archivo', label: 'Archivo', icon: 'archivo' },
   { to: '/alertas', label: 'Alertas', icon: 'alertas' },
