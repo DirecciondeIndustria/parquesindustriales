@@ -15,9 +15,20 @@
   --brand-grad: linear-gradient(135deg, #ff682c 0%, #ff8540 55%, #ffb109 100%);
   --sidebar-grad: linear-gradient(180deg, #8f3416 0%, #d24f1f 55%, #ff682c 100%);
   --chart-track: #eef2f7;
+
+  /* Curvas de easing con carácter (Emil Kowalski). Las nativas son flojas. */
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);        /* entradas, snappy */
+  --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);     /* movimiento on-screen */
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);   /* rebote sutil */
+
+  /* Sombra con tinte cálido (acorde al fondo crema/naranja, no negro plano). */
+  --shadow-sm: 0 1px 2px rgba(60, 36, 20, 0.05);
+  --shadow-md: 0 1px 2px rgba(60, 36, 20, 0.05), 0 10px 26px -16px rgba(60, 36, 20, 0.22);
+  --shadow-lg: 0 12px 34px -12px rgba(143, 52, 22, 0.26);
 }
 
 html, body, #root { height: 100%; }
+html { scroll-behavior: smooth; }
 
 body {
   margin: 0;
@@ -28,12 +39,22 @@ body {
     radial-gradient(1000px 500px at -10% 110%, rgba(249, 180, 20, 0.06), transparent 55%),
     #f4f1ec;
   -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
   transition: background-color .3s ease, color .3s ease;
 }
+
+/* Tipografía: títulos con presencia y sin huérfanos; números alineados. */
+h1, h2, h3 { text-wrap: balance; letter-spacing: -0.018em; }
+p { text-wrap: pretty; }
+
+/* Selección con color de marca. */
+::selection { background: rgba(255, 104, 44, 0.22); color: inherit; }
 
 /* ════════════════ DARK MODE ════════════════ */
 .dark {
   --chart-track: #334155;
+  --shadow-md: 0 1px 2px rgba(0, 0, 0, 0.4), 0 12px 30px -16px rgba(0, 0, 0, 0.7);
+  --shadow-lg: 0 16px 40px -12px rgba(0, 0, 0, 0.75);
   color-scheme: dark;
 }
 .dark body {
@@ -66,12 +87,15 @@ body {
 .dark .bg-red-50 { background-color: rgba(220, 38, 38, 0.12) !important; }
 .dark .hover\:bg-red-50:hover { background-color: rgba(220, 38, 38, 0.15) !important; }
 .dark .hover\:bg-slate-50:hover, .dark .hover\:bg-slate-100:hover { background-color: #1d2a3d !important; }
+.dark .skeleton { background: linear-gradient(90deg, #1a2433 0%, #233044 50%, #1a2433 100%); background-size: 200% 100%; }
 
 /* ── Scrollbar ── */
 ::-webkit-scrollbar { width: 10px; height: 10px; }
 ::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 8px; border: 2px solid transparent; background-clip: content-box; }
-::-webkit-scrollbar-thumb:hover { background: #94a3b8; background-clip: content-box; }
+::-webkit-scrollbar-thumb { background: #d6cfc4; border-radius: 8px; border: 2px solid transparent; background-clip: content-box; }
+::-webkit-scrollbar-thumb:hover { background: #b9b0a2; background-clip: content-box; }
+.dark ::-webkit-scrollbar-thumb { background: #334155; background-clip: content-box; }
+.dark ::-webkit-scrollbar-thumb:hover { background: #475569; background-clip: content-box; }
 
 /* ── Foco accesible global ── */
 :focus-visible { outline: 2px solid var(--brand-light); outline-offset: 2px; border-radius: 6px; }
@@ -83,11 +107,11 @@ body {
   -webkit-backdrop-filter: blur(12px) saturate(140%);
 }
 .card-elev {
-  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04), 0 8px 24px -12px rgba(15, 23, 42, 0.18);
-  transition: box-shadow .25s ease, transform .25s ease;
+  box-shadow: var(--shadow-md);
+  transition: box-shadow .3s var(--ease-out), transform .3s var(--ease-out);
 }
-.hover-lift { transition: transform .25s ease, box-shadow .25s ease; }
-.hover-lift:hover { transform: translateY(-3px); box-shadow: 0 12px 30px -10px rgba(15, 76, 129, 0.28); }
+.hover-lift { transition: transform .3s var(--ease-out), box-shadow .3s var(--ease-out); }
+.hover-lift:hover { transform: translateY(-3px); box-shadow: var(--shadow-lg); }
 .gradient-brand { background: var(--brand-grad); }
 .text-gradient {
   background: var(--brand-grad);
@@ -98,13 +122,35 @@ body {
 @keyframes fadeUp { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
 @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
 @keyframes scaleIn { from { opacity: 0; transform: scale(.96); } to { opacity: 1; transform: scale(1); } }
-.animate-in { animation: fadeUp .45s cubic-bezier(.16,1,.3,1) both; }
-.animate-fade { animation: fadeIn .4s ease both; }
-.animate-scale { animation: scaleIn .25s cubic-bezier(.16,1,.3,1) both; }
+.animate-in { animation: fadeUp .5s var(--ease-out) both; }
+.animate-fade { animation: fadeIn .35s ease both; }
+.animate-scale { animation: scaleIn .26s var(--ease-out) both; }
+
+/* ── Stagger: hijos directos entran en cascada (listas, grillas de tarjetas) ── */
+.stagger > * { animation: fadeUp .5s var(--ease-out) both; }
+.stagger > *:nth-child(1) { animation-delay: 0ms; }
+.stagger > *:nth-child(2) { animation-delay: 45ms; }
+.stagger > *:nth-child(3) { animation-delay: 90ms; }
+.stagger > *:nth-child(4) { animation-delay: 135ms; }
+.stagger > *:nth-child(5) { animation-delay: 180ms; }
+.stagger > *:nth-child(6) { animation-delay: 225ms; }
+.stagger > *:nth-child(7) { animation-delay: 270ms; }
+.stagger > *:nth-child(8) { animation-delay: 315ms; }
+.stagger > *:nth-child(n+9) { animation-delay: 360ms; }
+
+/* ── Skeleton loaders (reemplazan spinners genéricos) ── */
+@keyframes shimmer { 100% { background-position: -200% 0; } }
+.skeleton {
+  background: linear-gradient(90deg, #ece7df 0%, #f6f3ee 50%, #ece7df 100%);
+  background-size: 200% 100%;
+  animation: shimmer 1.3s linear infinite;
+  border-radius: 8px;
+}
 
 /* ── Elevación global de tarjetas (todas las páginas) ── */
 main .bg-white.rounded-xl, main .bg-white.rounded-2xl {
-  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04), 0 10px 26px -16px rgba(15, 23, 42, 0.20);
+  box-shadow: var(--shadow-md);
+  transition: box-shadow .3s var(--ease-out), transform .3s var(--ease-out);
 }
 
 /* ── Mejoras globales de tablas (aplican a todas las páginas) ── */
@@ -113,8 +159,10 @@ main table thead th {
   text-transform: uppercase; letter-spacing: .04em; font-size: 11px;
   background: linear-gradient(180deg, #f8fafc, #eef2f7);
 }
+/* Números alineados verticalmente en tablas de datos. */
+main table tbody td { font-variant-numeric: tabular-nums; }
 main table tbody tr { transition: background-color .18s ease, box-shadow .18s ease; }
-main table tbody tr:hover { background-color: #f0f6fc !important; }
+main table tbody tr:hover { background-color: #fbf1ea !important; }
 
 /* ── Botones / clickeables ── */
 button:not(:disabled), a, [role="button"], input[type="checkbox"], select, label:has(input[type="checkbox"]) { cursor: pointer; }
@@ -122,6 +170,7 @@ button:disabled { cursor: not-allowed; }
 
 /* ── Reduced motion ── */
 @media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after { animation-duration: .001ms !important; transition-duration: .001ms !important; }
+  html { scroll-behavior: auto; }
+  *, *::before, *::after { animation-duration: .001ms !important; animation-iteration-count: 1 !important; transition-duration: .001ms !important; }
   .hover-lift:hover { transform: none; }
 }

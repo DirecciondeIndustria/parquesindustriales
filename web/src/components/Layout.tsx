@@ -46,16 +46,19 @@ export default function Layout() {
           </div>
         </div>
 
-        <nav className="flex-1 overflow-y-auto py-3 px-2 space-y-0.5">
+        <nav className="stagger flex-1 overflow-y-auto py-3 px-2 space-y-0.5">
           {MODULOS.map((m) => (
             <NavLink
               key={m.to} to={m.to} end={m.to === '/'}
               onClick={() => setAbierto(false)}
               className={({ isActive }) =>
-                `group flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-all duration-200 ${
+                `group relative flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm
+                 transition-[transform,background-color,color,box-shadow] duration-200 ease-[cubic-bezier(.23,1,.32,1)]
+                 before:absolute before:left-0 before:top-1/2 before:-translate-y-1/2 before:rounded-r-full before:bg-white
+                 before:transition-[height] before:duration-200 ${
                   isActive
-                    ? 'bg-white/15 font-semibold shadow-inner ring-1 ring-white/10'
-                    : 'text-white/75 hover:text-white hover:bg-white/10 hover:translate-x-0.5'
+                    ? 'bg-white/15 font-semibold shadow-inner ring-1 ring-white/10 before:h-5'
+                    : 'text-white/75 hover:text-white hover:bg-white/10 hover:translate-x-0.5 before:h-0'
                 }`
               }
             >

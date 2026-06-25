@@ -166,7 +166,7 @@ export default function Dashboard() {
       )}
 
       {/* KPIs */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
+      <div className="stagger grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
         <KPI label="Expedientes activos" valor={activos.length} color="#21708c" icon="expedientes" />
         <KPI label="Demorados / en riesgo" valor={demorados} color="#dc2626" icon="alertas" />
         <KPI label="Finalizados" valor={finalizados} color="#16a34a" icon="auditoria" />

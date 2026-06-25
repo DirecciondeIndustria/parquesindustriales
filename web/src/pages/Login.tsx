@@ -17,10 +17,16 @@ export default function Login() {
   }
 
   return (
-    <div className="min-h-full grid place-items-center p-4 relative overflow-hidden bg-white">
+    <div className="min-h-full grid place-items-center p-4 relative overflow-hidden"
+      style={{
+        background:
+          'radial-gradient(900px 520px at 50% -12%, rgba(255,104,44,0.12), transparent 60%),' +
+          'radial-gradient(760px 520px at 50% 120%, rgba(33,112,140,0.09), transparent 55%),' +
+          '#f7f4ef',
+      }}>
       <form onSubmit={onSubmit}
-        className="relative w-full max-w-sm bg-white rounded-3xl p-8 space-y-5 ring-1 ring-slate-200 border border-slate-100 animate-scale
-          shadow-[0_24px_70px_-20px_rgba(15,23,42,0.35)]">
+        className="stagger relative w-full max-w-sm bg-white rounded-3xl p-8 space-y-5 ring-1 ring-slate-200 border border-slate-100 animate-scale
+          shadow-[0_26px_70px_-22px_rgba(143,52,22,0.30)]">
         <div className="text-center">
           <div className="w-20 h-20 mx-auto rounded-2xl grid place-items-center shadow-lg mb-4 overflow-hidden" style={{ background: '#fff' }}>
             <img src="/logo-silueta.png" alt="Logo Dirección de Industria" className="w-16 h-16 object-contain" />

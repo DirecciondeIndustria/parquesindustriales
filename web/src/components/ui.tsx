@@ -17,9 +17,15 @@ export function Boton({
       {...props}
       style={{ ...fondo, ...props.style }}
       className={`inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-medium
-        transition-all duration-200 disabled:opacity-60 disabled:pointer-events-none ${estilos} ${className}`}
+        transition-[transform,box-shadow,filter,background-color,border-color] duration-200 ease-[cubic-bezier(.23,1,.32,1)]
+        disabled:opacity-60 disabled:pointer-events-none ${estilos} ${className}`}
     />
   );
+}
+
+/** Skeleton loader: placeholder con shimmer (reemplaza spinners genéricos). */
+export function Skeleton({ className = '' }: { className?: string }) {
+  return <div className={`skeleton ${className}`} aria-hidden="true" />;
 }
 
 export function Modal({
