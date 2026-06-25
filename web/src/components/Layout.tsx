@@ -12,7 +12,7 @@ export const MODULOS = [
   { to: '/expedientes', label: 'Expedientes', icon: 'expedientes' },
   { to: '/mis-expedientes', label: 'Mis expedientes', icon: 'archivo' },
   { to: '/flujos', label: 'Flujos de trámite', icon: 'flujos' },
-  { to: '/documentos', label: 'Gestión documental', icon: 'documentos' },
+  { to: '/documentos', label: 'Mesa de Entradas y Salidas', icon: 'documentos' },
   { to: '/inspecciones', label: 'Inspecciones', icon: 'inspecciones' },
   { to: '/escrituraciones', label: 'Escrituraciones', icon: 'escrituraciones' },
   { to: '/archivo', label: 'Archivo', icon: 'archivo' },
