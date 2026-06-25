@@ -1,8 +1,9 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
-import { Modal, inputCls, EncabezadoPagina, Skeleton } from '../components/ui';
+import { Modal, Boton, inputCls, EncabezadoPagina, Skeleton } from '../components/ui';
 import { fmtFecha } from '../lib/fechas';
+import { exportarActaPdf } from '../lib/pdfActa';
 
 // Acta completa cargada desde la app de inspecciones del celular.
 // Tabla `actas_inspeccion` (ver migración 0024). Vista de SOLO LECTURA.
@@ -116,7 +117,14 @@ export default function Actas() {
       </div>
 
       <Modal titulo={sel ? `Acta de inspección N° ${nro(sel)}` : ''} abierto={!!sel} onCerrar={() => setSel(null)}>
-        {sel && <DetalleActa a={sel} />}
+        {sel && (
+          <>
+            <div className="flex justify-end mb-3">
+              <Boton onClick={() => exportarActaPdf(sel)}>Descargar PDF</Boton>
+            </div>
+            <DetalleActa a={sel} />
+          </>
+        )}
       </Modal>
     </div>
   );
