@@ -54,7 +54,7 @@ export default function Actas() {
   return (
     <div>
       <EncabezadoPagina
-        titulo="Actas de inspección"
+        titulo="Inspecciones"
         descripcion={`${actas.length} acta${actas.length === 1 ? '' : 's'} recibida${actas.length === 1 ? '' : 's'} desde la app de inspectores`}
       />
 
