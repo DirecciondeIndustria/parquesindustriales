@@ -89,12 +89,10 @@ export default function Layout() {
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M3 6h18M3 12h18M3 18h18" /></svg>
           </button>
 
-          {/* Logo institucional centrado (chip blanco: legible también en modo oscuro) */}
+          {/* Logo institucional centrado (el wordmark se invierte a blanco en modo oscuro) */}
           <div className="absolute left-1/2 -translate-x-1/2 pointer-events-none">
-            <div className="bg-white rounded-lg px-3 py-1.5 shadow-sm ring-1 ring-slate-200/70">
-              <img src="/logo.png" alt="Ministerio de Producción · Gobierno del Chubut" className="hidden sm:block h-7 object-contain" />
-              <img src="/logo-silueta.png" alt="Gobierno del Chubut" className="sm:hidden h-7 w-7 object-contain" />
-            </div>
+            <img src="/logo.png" alt="Ministerio de Producción · Gobierno del Chubut" className="logo-header hidden sm:block h-7 object-contain" />
+            <img src="/logo-silueta.png" alt="Gobierno del Chubut" className="sm:hidden h-7 w-7 object-contain" />
           </div>
 
           <div className="flex-1" />
