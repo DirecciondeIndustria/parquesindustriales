@@ -31,6 +31,9 @@ interface Movimiento {
   created_by: string | null; created_at: string;
 }
 
+// Tipos de entrada que admiten adjuntar un PDF en el registro.
+const TIPOS_CON_PDF = ['Nota', 'Proyecto Industrial', 'Notificación de Personal'];
+
 function tamañoLegible(b: number | null) {
   if (!b) return '—';
   if (b < 1024) return `${b} B`;
@@ -39,6 +42,13 @@ function tamañoLegible(b: number | null) {
 }
 
 const fmtExpStr = (n: number, a: number, s: string | null) => `${n}/${a}${s ? ` ${s}` : ''}`;
+
+async function abrirArchivo(path: string): Promise<boolean> {
+  const { data, error } = await supabase.storage.from('documentos').createSignedUrl(path, 60);
+  if (error || !data) return false;
+  window.open(data.signedUrl, '_blank');
+  return true;
+}
 
 export default function Documentos() {
   const qc = useQueryClient();
@@ -51,8 +61,8 @@ export default function Documentos() {
   const [filtroTipo, setFiltroTipo] = useState('');
   const [filtroEmp, setFiltroEmp] = useState('');
   const [error, setError] = useState('');
-  const [modalDeriv, setModalDeriv] = useState(false);
   const [modalEntrada, setModalEntrada] = useState(false);
+  const [derivarMov, setDerivarMov] = useState<Movimiento | null>(null);
 
   const { data: esMesaEntrada = false } = useQuery({
     queryKey: ['es-mesa-entrada'],
@@ -121,8 +131,8 @@ export default function Documentos() {
 
   const misPendientes = derivaciones.filter((d) => d.a_usuario === perfil?.id && d.estado === 'pendiente');
   const entradas = movimientos.filter((m) => m.sentido === 'entrada');
-  // La mesa de entrada (rol archivo) o admin/director pueden registrar entradas
-  // — coincide con la RLS de movimientos_mesa (es_mesa_entrada() or es_admin()).
+  // La mesa de entrada (rol archivo) o admin/director registran y derivan
+  // — coincide con la RLS de movimientos_mesa y derivaciones.
   const puedeRegistrar = esMesaEntrada || esAdmin;
 
   const recibir = useMutation({
@@ -166,9 +176,7 @@ export default function Documentos() {
   });
 
   async function descargar(d: Documento) {
-    const { data, error } = await supabase.storage.from('documentos').createSignedUrl(d.storage_path, 60);
-    if (error || !data) { setError('No se pudo generar el enlace.'); return; }
-    window.open(data.signedUrl, '_blank');
+    if (!(await abrirArchivo(d.storage_path))) setError('No se pudo generar el enlace.');
   }
 
   function onFile(e: React.ChangeEvent<HTMLInputElement>) {
@@ -251,26 +259,38 @@ export default function Documentos() {
                 {entradas.length === 0 && (
                   <tr><td colSpan={5} className="px-4 py-6 text-center text-slate-400">Sin entradas registradas.</td></tr>
                 )}
-                {entradas.map((m) => (
-                  <tr key={m.id} className="hover:bg-slate-50 align-top">
-                    <td className="px-4 py-3 text-slate-500 whitespace-nowrap">{new Date(m.created_at).toLocaleDateString('es-AR')}</td>
-                    <td className="px-4 py-3"><span className="text-xs px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 whitespace-nowrap">{m.tipo}</span></td>
-                    <td className="px-4 py-3 text-slate-700">{resumenEntrada(m)}</td>
-                    <td className="px-4 py-3 text-slate-600">
-                      {m.expediente_id ? `Exp. ${expNom(m.expediente_id)}` : (m.empresa_id ? empNom(m.empresa_id) : (m.datos?.razon_social ?? '—'))}
-                    </td>
-                    <td className="px-4 py-3 text-right whitespace-nowrap">
-                      {puedeRegistrar && (
-                        <button onClick={() => { if (confirm('¿Eliminar esta entrada?')) eliminarEntrada.mutate(m.id); }} className="text-red-600 hover:underline">Eliminar</button>
-                      )}
-                    </td>
-                  </tr>
-                ))}
+                {entradas.map((m) => {
+                  const derivada = derivaciones.find((d) => d.descripcion.includes(m.id));
+                  return (
+                    <tr key={m.id} className="hover:bg-slate-50 align-top">
+                      <td className="px-4 py-3 text-slate-500 whitespace-nowrap">{new Date(m.created_at).toLocaleDateString('es-AR')}</td>
+                      <td className="px-4 py-3"><span className="text-xs px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 whitespace-nowrap">{m.tipo}</span></td>
+                      <td className="px-4 py-3 text-slate-700">
+                        {resumenEntrada(m)}
+                        {m.datos?.storage_path && (
+                          <button onClick={() => abrirArchivo(m.datos.storage_path)} className="ml-2 text-[var(--brand)] hover:underline text-xs">📎 Ver PDF</button>
+                        )}
+                      </td>
+                      <td className="px-4 py-3 text-slate-600">
+                        {m.expediente_id ? `Exp. ${expNom(m.expediente_id)}` : (m.empresa_id ? empNom(m.empresa_id) : (m.datos?.razon_social ?? '—'))}
+                      </td>
+                      <td className="px-4 py-3 text-right whitespace-nowrap">
+                        {puedeRegistrar && (
+                          <>
+                            <button onClick={() => setDerivarMov(m)} className="text-[var(--brand)] hover:underline mr-3">Derivar</button>
+                            <button onClick={() => { if (confirm('¿Eliminar esta entrada?')) eliminarEntrada.mutate(m.id); }} className="text-red-600 hover:underline">Eliminar</button>
+                          </>
+                        )}
+                        {derivada && <div className="text-[11px] text-emerald-600 mt-1">→ {usrNom(derivada.a_usuario)}</div>}
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
 
-          {/* ── Archivos digitales (documentación adjunta) ── */}
+          {/* ── Movimientos derivados (todos los ven) ── */}
           {derivaciones.length > 0 && (
             <div className="bg-white rounded-xl shadow-sm p-4 mb-6">
               <h2 className="font-medium text-slate-700 mb-3">Documentación derivada</h2>
@@ -304,15 +324,12 @@ export default function Documentos() {
                   </tbody>
                 </table>
               </div>
-              <div className="mt-3">
-                {esMesaEntrada && <Boton variante="secundario" onClick={() => setModalDeriv(true)}>+ Registrar y derivar</Boton>}
-              </div>
             </div>
           )}
 
           {puedeEditar && (
             <div className="bg-white rounded-xl shadow-sm p-4 mb-6">
-              <h2 className="font-medium text-slate-700 mb-3">Subir archivo digital</h2>
+              <h2 className="font-medium text-slate-700 mb-3">Subir archivo digital (general)</h2>
               <div className="grid md:grid-cols-3 gap-3">
                 <select className={inputCls} value={tipo} onChange={(e) => setTipo(e.target.value)}>
                   {TIPOS_DOCUMENTALES.map((t) => <option key={t}>{t}</option>)}
@@ -387,25 +404,27 @@ export default function Documentos() {
           qc.invalidateQueries({ queryKey: ['movimientos-mesa'] });
           qc.invalidateQueries({ queryKey: ['expedientes-min'] });
           qc.invalidateQueries({ queryKey: ['expedientes'] });
+          qc.invalidateQueries({ queryKey: ['documentos'] });
         }}
       />
 
-      {/* Modal: registrar ingreso y derivar */}
-      <ModalDerivar
-        abierto={modalDeriv} onCerrar={() => setModalDeriv(false)}
-        empresas={empresas} usuarios={usuarios.filter((u) => u.id !== perfil?.id)} expedientes={expedientes}
-        miId={perfil?.id ?? ''} onListo={() => { setModalDeriv(false); qc.invalidateQueries({ queryKey: ['derivaciones'] }); }}
+      {/* Modal: derivar una entrada registrada a un agente */}
+      <ModalDerivarEntrada
+        mov={derivarMov} onCerrar={() => setDerivarMov(null)}
+        usuarios={usuarios.filter((u) => u.id !== perfil?.id)} miId={perfil?.id ?? ''}
+        resumen={derivarMov ? resumenEntrada(derivarMov) : ''}
+        onListo={() => { setDerivarMov(null); qc.invalidateQueries({ queryKey: ['derivaciones'] }); }}
       />
     </div>
   );
 }
 
-/** Texto-resumen de una entrada según su tipo, para la tabla. */
+/** Texto-resumen de una entrada según su tipo, para la tabla y la derivación. */
 function resumenEntrada(m: Movimiento): string {
   const d = m.datos ?? {};
   switch (m.tipo) {
     case 'Nota':
-      return [d.remitente && `Remitente: ${d.remitente}`, d.motivo && `Motivo: ${d.motivo}`].filter(Boolean).join(' · ') || '—';
+      return [d.remitente && `Remitente: ${d.remitente}`, d.motivo && `Motivo: ${d.motivo}`].filter(Boolean).join(' · ') || 'Nota';
     case 'Plano':
       return `Plano de ${d.subtipo === 'obra' ? 'obra' : 'mensura'}`;
     case 'Expediente': {
@@ -440,6 +459,8 @@ function ModalEntrada({
 }) {
   const [tipo, setTipo] = useState<typeof TIPOS_ENTRADA[number]>('Nota');
   const [observaciones, setObservaciones] = useState('');
+  const archivoRef = useRef<HTMLInputElement>(null);
+  const [archivo, setArchivo] = useState<File | null>(null);
 
   // Nota
   const [remitente, setRemitente] = useState('');
@@ -476,9 +497,11 @@ function ModalEntrada({
     return expedientes.filter((e) => fmtExpStr(e.numero, e.anio, e.sigla).toLowerCase().includes(q)).slice(0, 50);
   }, [expBusqueda, expedientes]);
   const expSel = expedientes.find((e) => e.id === expId) ?? null;
+  const permitePdf = TIPOS_CON_PDF.includes(tipo);
 
   function reset() {
-    setTipo('Nota'); setObservaciones('');
+    setTipo('Nota'); setObservaciones(''); setArchivo(null);
+    if (archivoRef.current) archivoRef.current.value = '';
     setRemitente(''); setMotivoNota('');
     setSubtipoPlano('obra');
     setExpBusqueda(''); setExpId(''); setExpEmpresaId(''); setMotivoExp('recaratulacion');
@@ -510,7 +533,6 @@ function ModalEntrada({
             const nNum = parseInt(nuevoNumero, 10);
             const nAnio = parseInt(nuevoAnio, 10);
             if (!nNum || !nAnio) throw new Error('Ingresá número y año del expediente recaratulado.');
-            // Actualiza el expediente en la base (conserva id, historial y vínculos).
             const { error: rpcErr } = await supabase.rpc('recaratular_expediente', {
               p_exp_id: expSel.id, p_numero: nNum, p_anio: nAnio, p_sigla: nuevaSigla.trim() || null,
             });
@@ -520,10 +542,7 @@ function ModalEntrada({
           break;
         }
         case 'Notificación de Personal':
-          datos = {
-            instrumento, numero: instrNumero.trim(), anio: instrAnio.trim(),
-            sigla: instrSigla.trim() || null,
-          };
+          datos = { instrumento, numero: instrNumero.trim(), anio: instrAnio.trim(), sigla: instrSigla.trim() || null };
           break;
         case 'Correspondencia':
           datos = {
@@ -539,6 +558,24 @@ function ModalEntrada({
           break;
       }
 
+      // Adjuntar PDF (solo Nota, Proyecto Industrial y Notificación de Personal).
+      if (permitePdf && archivo) {
+        const path = `mesa/${Date.now()}-${archivo.name}`;
+        const up = await supabase.storage.from('documentos').upload(path, archivo);
+        if (up.error) throw up.error;
+        const docTipo = tipo === 'Nota' ? 'Nota'
+          : tipo === 'Proyecto Industrial' ? 'Proyecto industrial'
+          : (TIPOS_DOCUMENTALES.includes(instrumento) ? instrumento : 'Otro');
+        const { data: docRow, error: docErr } = await supabase.from('documentos').insert({
+          tipo_documental: docTipo, nombre: archivo.name, storage_path: path, mime: archivo.type,
+          tamano: archivo.size, empresa_id, subido_por: miId,
+        }).select('id').single();
+        if (docErr) throw docErr;
+        datos.documento_id = docRow?.id ?? null;
+        datos.storage_path = path;
+        datos.archivo_nombre = archivo.name;
+      }
+
       const { error } = await supabase.from('movimientos_mesa').insert({
         sentido: 'entrada', tipo, empresa_id, expediente_id, datos,
         observaciones: observaciones.trim() || null, created_by: miId,
@@ -548,7 +585,6 @@ function ModalEntrada({
     onSuccess: () => { reset(); onListo(); },
   });
 
-  // Validación mínima por tipo para habilitar el botón.
   const valido = (() => {
     switch (tipo) {
       case 'Nota': return remitente.trim() !== '';
@@ -721,6 +757,15 @@ function ModalEntrada({
           </>
         )}
 
+        {/* ── Adjuntar PDF (Nota, Proyecto Industrial, Notificación de Personal) ── */}
+        {permitePdf && (
+          <Campo label="Archivo digital PDF (opcional)">
+            <input ref={archivoRef} type="file" accept="application/pdf"
+              onChange={(e) => setArchivo(e.target.files?.[0] ?? null)}
+              className="text-sm file:mr-3 file:rounded-lg file:border-0 file:bg-[var(--brand)] file:text-white file:px-4 file:py-2" />
+          </Campo>
+        )}
+
         <Campo label="Observaciones (opcional)">
           <textarea className={inputCls} rows={2} value={observaciones} onChange={(e) => setObservaciones(e.target.value)} />
         </Campo>
@@ -735,69 +780,59 @@ function ModalEntrada({
   );
 }
 
-function ModalDerivar({
-  abierto, onCerrar, empresas, usuarios, expedientes, miId, onListo,
+// ════════════════════════════════════════════════════════════════
+//  Modal: Derivar una entrada registrada a un agente
+// ════════════════════════════════════════════════════════════════
+function ModalDerivarEntrada({
+  mov, onCerrar, usuarios, miId, resumen, onListo,
 }: {
-  abierto: boolean; onCerrar: () => void;
-  empresas: Empresa[]; usuarios: UsuarioMin[]; expedientes: ExpedienteMin[]; miId: string; onListo: () => void;
+  mov: Movimiento | null; onCerrar: () => void;
+  usuarios: UsuarioMin[]; miId: string; resumen: string; onListo: () => void;
 }) {
-  const [form, setForm] = useState({ tipo_documental: TIPOS_DOCUMENTALES[0], descripcion: '', a_usuario: '', empresa_id: '', expediente_id: '', nota: '' });
+  const [aUsuario, setAUsuario] = useState('');
+  const [nota, setNota] = useState('');
 
   const crear = useMutation({
     mutationFn: async () => {
+      if (!mov) return;
+      // La descripción incluye el id de la entrada para enlazarla con la derivación.
       const { error } = await supabase.from('derivaciones').insert({
-        tipo_documental: form.tipo_documental, descripcion: form.descripcion, a_usuario: form.a_usuario,
-        de_usuario: miId, empresa_id: form.empresa_id || null, expediente_id: form.expediente_id || null,
-        nota: form.nota || null,
+        tipo_documental: mov.tipo,
+        descripcion: `${resumen} [${mov.id}]`,
+        a_usuario: aUsuario, de_usuario: miId,
+        empresa_id: mov.empresa_id, expediente_id: mov.expediente_id,
+        documento_id: mov.datos?.documento_id ?? null,
+        nota: nota.trim() || null,
       });
       if (error) throw error;
     },
-    onSuccess: () => { setForm({ tipo_documental: TIPOS_DOCUMENTALES[0], descripcion: '', a_usuario: '', empresa_id: '', expediente_id: '', nota: '' }); onListo(); },
+    onSuccess: () => { setAUsuario(''); setNota(''); onListo(); },
   });
 
   return (
-    <Modal titulo="Registrar y derivar documentación" abierto={abierto} onCerrar={onCerrar}>
-      <form onSubmit={(e: FormEvent) => { e.preventDefault(); if (form.descripcion.trim() && form.a_usuario) crear.mutate(); }} className="space-y-4">
-        <Campo label="Descripción de la documentación">
-          <input className={inputCls} required placeholder="Ej: Planos de obra, Nota de pronto despacho…" value={form.descripcion}
-            onChange={(e) => setForm({ ...form, descripcion: e.target.value })} />
-        </Campo>
-        <div className="grid grid-cols-2 gap-4">
-          <Campo label="Tipo documental">
-            <select className={inputCls} value={form.tipo_documental} onChange={(e) => setForm({ ...form, tipo_documental: e.target.value })}>
-              {TIPOS_DOCUMENTALES.map((t) => <option key={t}>{t}</option>)}
-            </select>
-          </Campo>
+    <Modal titulo="Derivar entrada" abierto={!!mov} onCerrar={onCerrar}>
+      {mov && (
+        <form onSubmit={(e: FormEvent) => { e.preventDefault(); if (aUsuario) crear.mutate(); }} className="space-y-4">
+          <div className="rounded-xl bg-slate-50 border border-slate-200 p-3 text-sm">
+            <span className="text-xs px-2 py-0.5 rounded-full bg-slate-200 text-slate-700 mr-2">{mov.tipo}</span>
+            <span className="text-slate-700">{resumen}</span>
+          </div>
           <Campo label="Derivar a">
-            <select className={inputCls} required value={form.a_usuario} onChange={(e) => setForm({ ...form, a_usuario: e.target.value })}>
+            <select className={inputCls} required value={aUsuario} onChange={(e) => setAUsuario(e.target.value)}>
               <option value="">Elegí un agente…</option>
               {usuarios.map((u) => <option key={u.id} value={u.id}>{u.nombre}</option>)}
             </select>
           </Campo>
-        </div>
-        <div className="grid grid-cols-2 gap-4">
-          <Campo label="Empresa (opcional)">
-            <select className={inputCls} value={form.empresa_id} onChange={(e) => setForm({ ...form, empresa_id: e.target.value })}>
-              <option value="">Sin asociar</option>
-              {empresas.map((e) => <option key={e.id} value={e.id}>{e.razon_social}</option>)}
-            </select>
+          <Campo label="Nota (opcional)">
+            <textarea className={inputCls} rows={2} value={nota} onChange={(e) => setNota(e.target.value)} placeholder="Indicación para el agente" />
           </Campo>
-          <Campo label="Expediente (opcional)">
-            <select className={inputCls} value={form.expediente_id} onChange={(e) => setForm({ ...form, expediente_id: e.target.value })}>
-              <option value="">Sin asociar</option>
-              {expedientes.map((x) => <option key={x.id} value={x.id}>{x.numero}/{x.anio}{x.sigla ? ' ' + x.sigla : ''}</option>)}
-            </select>
-          </Campo>
-        </div>
-        <Campo label="Nota (opcional)">
-          <textarea className={inputCls} rows={2} value={form.nota} onChange={(e) => setForm({ ...form, nota: e.target.value })} />
-        </Campo>
-        {crear.isError && <p className="text-sm text-red-600">No se pudo registrar la derivación.</p>}
-        <div className="flex justify-end gap-2 pt-2">
-          <Boton type="button" variante="secundario" onClick={onCerrar}>Cancelar</Boton>
-          <Boton type="submit" disabled={crear.isPending || !form.descripcion.trim() || !form.a_usuario}>{crear.isPending ? 'Registrando…' : 'Registrar y derivar'}</Boton>
-        </div>
-      </form>
+          {crear.isError && <p className="text-sm text-red-600">No se pudo derivar la entrada.</p>}
+          <div className="flex justify-end gap-2 pt-2">
+            <Boton type="button" variante="secundario" onClick={onCerrar}>Cancelar</Boton>
+            <Boton type="submit" disabled={crear.isPending || !aUsuario}>{crear.isPending ? 'Derivando…' : 'Derivar'}</Boton>
+          </div>
+        </form>
+      )}
     </Modal>
   );
 }
