@@ -29,7 +29,7 @@ export default function App() {
   }
 
   if (!session) {
-    const esEmpresas = window.location.pathname.toLowerCase().startsWith('/empresas');
+    const esEmpresas = window.location.pathname.toLowerCase().startsWith('/portal-empresas');
     return <Login variant={esEmpresas ? 'empresas' : 'sigpip'} />;
   }
 
