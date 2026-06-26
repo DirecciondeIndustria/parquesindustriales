@@ -984,12 +984,13 @@ input.invalid,textarea.invalid,select.invalid{border-color:var(--danger)!importa
     <div class="dash-hero">
       <h2>Panel de Inspecciones</h2>
       <p>Registrá una nueva inspección o consultá el historial.</p>
-      <button class="btn-hero" onclick="startNewInspeccion()">
+      <button class="btn-hero" onclick="beginInspeccion()">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
         Nueva Inspección
       </button>
     </div>
 
+    <div id="pendingPanel"></div>
     <div class="draft-banner" id="draftBanner" style="display:none">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4z"/></svg>
       <div class="db-txt"><b id="draftTitle">Inspección sin terminar</b><span id="draftMeta">Guardada como borrador</span></div>
@@ -1071,11 +1072,8 @@ input.invalid,textarea.invalid,select.invalid{border-color:var(--danger)!importa
       </div>
       <div class="card">
         <div class="card-title">Agentes Inspectores</div>
-        <div class="agent-tags" id="agentTags"></div>
-        <div class="agent-add">
-          <input type="text" id="agentInput" placeholder="Nombre y apellido" style="flex:1">
-          <button class="btn-mini" onclick="addAgent()" aria-label="Agregar agente">＋</button>
-        </div>
+        <div id="agentesBox" style="display:flex;flex-direction:column;gap:8px"></div>
+        <button type="button" class="btn btn-ghost" id="agent2Btn" style="width:100%;margin-top:8px" onclick="toggleAgent2()">＋ Incorporar Agente 2</button>
       </div>
     </div>
 
@@ -1383,6 +1381,7 @@ input.invalid,textarea.invalid,select.invalid{border-color:var(--danger)!importa
         <div class="rl" id="sessRol">—</div>
       </div>
     </div>
+    <button class="btn btn-ghost" onclick="openFirmaModal()" style="width:100%;margin-bottom:8px">✍️ Mi firma digital <span id="firmaStatus" style="opacity:.7;font-size:.85em"></span></button>
     <button class="btn btn-ghost" onclick="logout()" style="width:100%">Cerrar sesión</button>
   </div>
   <div class="sheet-actions">
@@ -1562,13 +1561,13 @@ async function loadCurrentUser() {
   try {
     const { data: { user } } = await supa.auth.getUser();
     if (!user) { CURRENT_USER = null; return; }
-    let nombre = user.email, rol = null, activo = true;
+    let nombre = user.email, rol = null, activo = true, firma = null;
     try {
       const { data } = await supa.from('usuarios')
-        .select('nombre, rol, activo').eq('id', user.id).single();
-      if (data) { nombre = data.nombre || nombre; rol = data.rol; activo = data.activo !== false; }
+        .select('nombre, rol, activo, firma').eq('id', user.id).single();
+      if (data) { nombre = data.nombre || nombre; rol = data.rol; activo = data.activo !== false; firma = data.firma || null; }
     } catch (e) { /* sin fila en usuarios: igual queda autenticado */ }
-    CURRENT_USER = { id: user.id, email: user.email, nombre, rol, activo };
+    CURRENT_USER = { id: user.id, email: user.email, nombre, rol, activo, firma };
   } catch (e) { console.error(e); CURRENT_USER = null; }
 }
 
@@ -1608,6 +1607,7 @@ async function doLogin(ev) {
     updateUserChip();
     hideLogin();
     await refreshDashboard();
+    initCoinspeccion();
   } catch (e) {
     errBox.textContent = 'No se pudo conectar. Revisá tu conexión.';
     errBox.style.display = 'block';
@@ -1645,9 +1645,9 @@ window.addEventListener('DOMContentLoaded', async () => {
   initDB();
   const _authed = await ensureAuth();
   if (_authed) await refreshDashboard();
-  document.getElementById('agentInput').addEventListener('keydown', e => {
-    if (e.key === 'Enter') { e.preventDefault(); addAgent(); }
-  });
+  const _ai = document.getElementById('agentInput');
+  if (_ai) _ai.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); addAgent(); } });
+  if (_authed) initCoinspeccion();
   window.addEventListener('resize', () => { if (document.getElementById('sigModal').classList.contains('show')) fitSigCanvas(); });
   document.getElementById('inspInput').addEventListener('keydown', e => {
     if (e.key === 'Enter') { e.preventDefault(); addInspector(); }
@@ -1914,6 +1914,7 @@ async function startNewInspeccion(prefill) {
   editingId = null;
   showScreen('screenWizard');
   goToStep(1);
+  applyInspectorIdentity();
 
   const now = new Date();
   const year = now.getFullYear();
@@ -2010,6 +2011,8 @@ async function finishForm() {
   document.getElementById('loadingText').textContent = ONLINE ? 'Guardando en la base de datos…' : 'Guardando…';
   try {
     const d = collectFormData();
+    d.agente1Id = (window.CURRENT_USER && CURRENT_USER.id) || null;
+    d.agente2Id = (window.AGENT2 && AGENT2.id) || null;
     const record = {
       numero: parseInt(d.actaNum) || 0,
       anio: parseInt(d.actaYear) || new Date().getFullYear(),
@@ -2970,5 +2973,285 @@ async function generarInforme() {
 }
 
 </script>
+
+<style>
+.cox-modal{position:fixed;inset:0;background:rgba(15,20,30,.55);display:none;align-items:center;justify-content:center;z-index:99999;padding:16px}
+.cox-modal.show{display:flex}
+.cox-card{background:#fff;border-radius:16px;padding:18px;max-width:430px;width:100%;box-shadow:0 20px 60px rgba(0,0,0,.3)}
+.cox-card h3{margin:0 0 10px;font-size:1.05rem;color:#15202e}
+.cox-stage{height:190px;border:1px dashed #cdd7e3;border-radius:12px;background:#fff;touch-action:none}
+.cox-actions{display:flex;gap:8px;margin-top:14px;flex-wrap:wrap}
+.cox-actions .btn{flex:1;min-width:110px}
+.pending-card{background:#fff7ed;border:1px solid #fed7aa;border-radius:14px;padding:13px 14px;margin-bottom:10px}
+.pending-card .pc-txt{font-size:.92rem;color:#7c2d12}
+.pc-actions{display:flex;gap:8px;margin-top:10px}
+.pc-actions .btn{flex:1}
+</style>
+
+<div class="cox-modal" id="firmaModal">
+  <div class="cox-card">
+    <h3>Mi firma digital</h3>
+    <p style="font-size:.85rem;color:#64748b;margin:0 0 10px">Se aplicar&aacute; autom&aacute;ticamente en tus inspecciones. No tendr&aacute;s que firmar al finalizar el acta.</p>
+    <div class="cox-stage" id="firmaStage"><canvas id="firmaCanvas" style="width:100%;height:100%"></canvas></div>
+    <div class="cox-actions">
+      <button class="btn btn-ghost" onclick="clearFirma()">Limpiar</button>
+      <button class="btn btn-ghost" onclick="closeFirmaModal()">Cancelar</button>
+      <button class="btn btn-primary" onclick="saveFirma()">Guardar</button>
+    </div>
+  </div>
+</div>
+
+<div class="cox-modal" id="agent2Choice">
+  <div class="cox-card">
+    <h3>Nueva inspecci&oacute;n</h3>
+    <p style="font-size:.9rem;color:#475569;margin:0 0 4px">&iquest;Realiz&aacute;s la inspecci&oacute;n con un segundo agente?</p>
+    <div class="cox-actions">
+      <button class="btn btn-ghost" onclick="continuarSolo()">Continuar solo</button>
+      <button class="btn btn-primary" onclick="elegirAgent2()">Incorporar Agente 2</button>
+    </div>
+  </div>
+</div>
+
+<div class="cox-modal" id="agent2Pick">
+  <div class="cox-card">
+    <h3>Incorporar Agente 2</h3>
+    <p style="font-size:.85rem;color:#64748b;margin:0 0 10px">El inspector seleccionado deber&aacute; <b>aceptar</b> la designaci&oacute;n desde su propia cuenta.</p>
+    <select id="inspectorSelect" style="width:100%;padding:10px;border:1px solid #cdd7e3;border-radius:10px;font-size:1rem"></select>
+    <div class="cox-actions">
+      <button class="btn btn-ghost" onclick="document.getElementById('agent2Pick').classList.remove('show')">Cancelar</button>
+      <button class="btn btn-primary" onclick="confirmarAgent2()">Enviar solicitud</button>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ===== Co-inspección: firma propia, Agente 2 con consentimiento, realtime ===== */
+window.AGENT2 = null;          // { id, nombre, firma } cuando aceptó
+var _desigId = null;           // designación en curso (esperando aceptación)
+var _firmaPad = null;
+var _chPending = null, _chDesig = null;
+
+function beep() {
+  try {
+    var ctx = new (window.AudioContext || window.webkitAudioContext)();
+    var o = ctx.createOscillator(), g = ctx.createGain();
+    o.connect(g); g.connect(ctx.destination);
+    o.type = 'sine'; o.frequency.value = 880;
+    g.gain.setValueAtTime(0.001, ctx.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.35, ctx.currentTime + 0.02);
+    g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.55);
+    o.start(); o.stop(ctx.currentTime + 0.55);
+  } catch (e) {}
+}
+
+function initCoinspeccion() {
+  if (!ONLINE || !CURRENT_USER) return;
+  updateFirmaStatus();
+  loadPending();
+  subscribePending();
+}
+
+/* ---- Mi firma ---- */
+function updateFirmaStatus() {
+  var el = document.getElementById('firmaStatus');
+  if (el) el.textContent = (CURRENT_USER && CURRENT_USER.firma) ? '✓ registrada' : '— sin registrar';
+}
+function openFirmaModal() {
+  if (!CURRENT_USER) { toast('Iniciá sesión primero'); return; }
+  document.getElementById('firmaModal').classList.add('show');
+  setTimeout(function () {
+    var c = document.getElementById('firmaCanvas');
+    var stage = document.getElementById('firmaStage');
+    var ratio = Math.max(window.devicePixelRatio || 1, 1);
+    c.width = stage.clientWidth * ratio; c.height = stage.clientHeight * ratio;
+    c.getContext('2d').scale(ratio, ratio);
+    _firmaPad = new SignaturePad(c, { penColor: '#111' });
+    if (CURRENT_USER.firma) { try { _firmaPad.fromDataURL(CURRENT_USER.firma); } catch (e) {} }
+  }, 60);
+}
+function closeFirmaModal() { document.getElementById('firmaModal').classList.remove('show'); }
+function clearFirma() { if (_firmaPad) _firmaPad.clear(); }
+async function saveFirma() {
+  if (!_firmaPad || _firmaPad.isEmpty()) { toast('Dibujá tu firma'); return; }
+  var dataUrl = _firmaPad.toDataURL('image/png');
+  var r = await supa.rpc('guardar_mi_firma', { p_firma: dataUrl });
+  if (r.error) { console.error(r.error); toast('No se pudo guardar la firma'); return; }
+  CURRENT_USER.firma = dataUrl;
+  updateFirmaStatus(); closeFirmaModal(); toast('Firma registrada ✓');
+}
+
+/* ---- Identidad del inspector en el acta ---- */
+function applyInspectorIdentity() {
+  if (!CURRENT_USER) return;
+  agents = [CURRENT_USER.nombre];
+  var a1 = document.getElementById('agente1Nombre');
+  if (a1) { a1.value = CURRENT_USER.nombre || ''; a1.readOnly = true; }
+  sigStore[1] = CURRENT_USER.firma || null;
+  var a2 = document.getElementById('agente2Nombre');
+  if (window.AGENT2) {
+    agents = [CURRENT_USER.nombre, AGENT2.nombre];
+    sigStore[2] = AGENT2.firma || null;
+    if (a2) { a2.value = AGENT2.nombre || ''; a2.readOnly = true; }
+  } else {
+    sigStore[2] = null;
+    if (a2) { a2.value = ''; a2.readOnly = true; }
+  }
+  renderAgentesBox();
+  if (typeof renderSigList === 'function') renderSigList();
+}
+function renderAgentesBox() {
+  var box = document.getElementById('agentesBox');
+  if (!box) return;
+  var me = CURRENT_USER ? esc(CURRENT_USER.nombre || 'Yo') : 'Yo';
+  var firmaOk = (CURRENT_USER && CURRENT_USER.firma);
+  var html = '<div class="agent-tag"><span><b>Agente 1 (titular):</b> ' + me +
+    (firmaOk ? ' · firma ✓' : ' · <span style="color:#b45309">sin firma</span>') + '</span></div>';
+  if (window.AGENT2) {
+    html += '<div class="agent-tag"><span><b>Agente 2:</b> ' + esc(AGENT2.nombre) + ' · aceptó ✓</span><button onclick="quitarAgent2()">×</button></div>';
+  } else if (_desigId) {
+    html += '<div class="agent-tag" style="opacity:.85"><span><b>Agente 2:</b> esperando aceptación…</span><button onclick="cancelarAgent2()">×</button></div>';
+  }
+  box.innerHTML = html;
+  var btn = document.getElementById('agent2Btn');
+  if (btn) btn.style.display = (window.AGENT2 || _desigId) ? 'none' : '';
+}
+
+/* ---- Inicio con elección de Agente 2 ---- */
+function beginInspeccion() {
+  if (!CURRENT_USER) { toast('Iniciá sesión'); return; }
+  if (!CURRENT_USER.firma) { toast('Registrá tu firma digital primero'); openFirmaModal(); return; }
+  document.getElementById('agent2Choice').classList.add('show');
+}
+function continuarSolo() {
+  document.getElementById('agent2Choice').classList.remove('show');
+  window.AGENT2 = null; _desigId = null;
+  startNewInspeccion();
+}
+function elegirAgent2() {
+  document.getElementById('agent2Choice').classList.remove('show');
+  window.AGENT2 = null; _desigId = null;
+  startNewInspeccion();
+  openAgent2Picker();
+}
+function toggleAgent2() { openAgent2Picker(); }
+async function openAgent2Picker() {
+  var r = await supa.rpc('listar_inspectores');
+  if (r.error) { console.error(r.error); toast('No se pudieron cargar los inspectores'); return; }
+  var sel = document.getElementById('inspectorSelect');
+  sel.innerHTML = '<option value="">Elegí un inspector…</option>' +
+    (r.data || []).map(function (i) { return '<option value="' + i.id + '">' + esc(i.nombre) + '</option>'; }).join('');
+  document.getElementById('agent2Pick').classList.add('show');
+}
+async function confirmarAgent2() {
+  var sel = document.getElementById('inspectorSelect');
+  var id = sel.value, nombre = (sel.options[sel.selectedIndex] || {}).text || '';
+  if (!id) { toast('Elegí un inspector'); return; }
+  var draftId = window._draftId || ('d_' + Date.now()); window._draftId = draftId;
+  var r = await supa.rpc('crear_designacion', { p_draft_id: draftId, p_inspector2: id });
+  if (r.error) { console.error(r.error); toast('No se pudo enviar la solicitud'); return; }
+  _desigId = r.data;
+  document.getElementById('agent2Pick').classList.remove('show');
+  toast('Solicitud enviada a ' + nombre + '. Esperando aceptación…');
+  renderAgentesBox();
+  subscribeDesig(_desigId);
+}
+function subscribeDesig(id) {
+  try { if (_chDesig) supa.removeChannel(_chDesig); } catch (e) {}
+  _chDesig = supa.channel('desig_' + id)
+    .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'actas_designaciones', filter: 'id=eq.' + id }, function (p) {
+      var rr = p.new;
+      if (rr.estado === 'aceptada') {
+        window.AGENT2 = { id: rr.inspector2_id, nombre: rr.inspector2_nombre, firma: rr.inspector2_firma };
+        _desigId = null; applyInspectorIdentity(); beep();
+        toast((rr.inspector2_nombre || 'El agente') + ' aceptó la designación ✓');
+      } else if (rr.estado === 'rechazada' || rr.estado === 'cancelada') {
+        _desigId = null; window.AGENT2 = null; applyInspectorIdentity();
+        toast('La designación fue ' + rr.estado);
+      }
+    }).subscribe();
+}
+async function cancelarAgent2() {
+  if (!_desigId) return;
+  await supa.rpc('cancelar_designacion', { p_id: _desigId });
+  _desigId = null; renderAgentesBox();
+}
+function quitarAgent2() { window.AGENT2 = null; applyInspectorIdentity(); }
+function renderAgents(){ try { renderAgentesBox(); } catch(e){} }
+
+/* ---- Panel de solicitudes pendientes (yo como Agente 2) ---- */
+async function loadPending() {
+  if (!ONLINE || !CURRENT_USER) return;
+  var r = await supa.from('actas_designaciones').select('*')
+    .eq('inspector2_id', CURRENT_USER.id).eq('estado', 'pendiente')
+    .order('created_at', { ascending: false });
+  if (r.error) { console.error(r.error); return; }
+  renderPending(r.data || []);
+}
+function renderPending(list) {
+  var p = document.getElementById('pendingPanel');
+  if (!p) return;
+  if (!list.length) { p.innerHTML = ''; return; }
+  p.innerHTML = list.map(function (d) {
+    return '<div class="pending-card"><div class="pc-txt"><b>' + esc(d.inspector1_nombre || 'Un inspector') +
+      '</b> te está incorporando como <b>Agente 2</b> en una inspección.</div>' +
+      '<div class="pc-actions"><button class="btn btn-accent" onclick="aceptarDesig(\'' + d.id + '\')">Aceptar</button>' +
+      '<button class="btn btn-ghost" onclick="rechazarDesig(\'' + d.id + '\')">Rechazar</button></div></div>';
+  }).join('');
+}
+async function aceptarDesig(id) {
+  if (!CURRENT_USER.firma) { toast('Registrá tu firma digital primero'); openFirmaModal(); return; }
+  var r = await supa.rpc('aceptar_designacion', { p_id: id });
+  if (r.error) {
+    console.error(r.error);
+    var m = (r.error.message || '');
+    toast(m.indexOf('FIRMA') >= 0 ? 'Registrá tu firma primero' : 'No se pudo aceptar');
+    return;
+  }
+  toast('Aceptaste la designación ✓'); loadPending();
+}
+async function rechazarDesig(id) {
+  await supa.rpc('rechazar_designacion', { p_id: id });
+  toast('Rechazaste la designación'); loadPending();
+}
+function subscribePending() {
+  if (!CURRENT_USER) return;
+  try { if (_chPending) supa.removeChannel(_chPending); } catch (e) {}
+  _chPending = supa.channel('pending_' + CURRENT_USER.id)
+    .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'actas_designaciones', filter: 'inspector2_id=eq.' + CURRENT_USER.id }, function (p) {
+      beep();
+      toast((p.new.inspector1_nombre || 'Un inspector') + ' te incorpora como Agente 2');
+      loadPending();
+    }).subscribe();
+}
+
+/* ---- Firmas: sólo la empresa firma a mano ---- */
+function startSignFlow() { openSigModal(3, false); }
+function renderSigList() {
+  var cont = document.getElementById('sigList');
+  if (!cont) return;
+  var check = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>';
+  var pen = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4z"/></svg>';
+  var rows = [];
+  var r1 = sigPersonName(1);
+  rows.push('<div class="sig-row ' + (sigStore[1] ? 'signed' : '') + '"><div class="sr-ico">' + (sigStore[1] ? check : pen) +
+    '</div><div class="sr-info"><b>Inspector titular</b><span>' + (sigStore[1] ? ('Firma automática' + (r1 ? ' · ' + esc(r1) : '')) : 'Registrá tu firma') +
+    '</span></div>' + (sigStore[1] ? '<img class="sr-prev" src="' + sigStore[1] + '">' : '') + '</div>');
+  if (window.AGENT2 && sigStore[2]) {
+    var r2 = sigPersonName(2);
+    rows.push('<div class="sig-row signed"><div class="sr-ico">' + check +
+      '</div><div class="sr-info"><b>Inspector 2</b><span>Firma automática' + (r2 ? ' · ' + esc(r2) : '') +
+      '</span></div><img class="sr-prev" src="' + sigStore[2] + '"></div>');
+  }
+  var r3 = sigPersonName(3);
+  rows.push('<div class="sig-row ' + (sigStore[3] ? 'signed' : '') + '"><div class="sr-ico">' + (sigStore[3] ? check : pen) +
+    '</div><div class="sr-info"><b>Responsable de la empresa</b><span>' + (sigStore[3] ? ('Firmado' + (r3 ? ' · ' + esc(r3) : '')) : (r3 ? esc(r3) : 'Pendiente de firma')) +
+    '</span></div>' + (sigStore[3] ? '<img class="sr-prev" src="' + sigStore[3] + '">' : '') +
+    '<button class="sr-btn" onclick="openSigModal(3,false)">' + (sigStore[3] ? 'Re-firmar' : 'Firmar') + '</button></div>');
+  cont.innerHTML = rows.join('');
+  var lbl = document.getElementById('sigPersonLabel');
+  if (lbl) lbl.textContent = r3 ? ('Responsable firmante: ' + r3) : '';
+}
+</script>
+
 </body>
 </html>
