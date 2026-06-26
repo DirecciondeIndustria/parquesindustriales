@@ -6,24 +6,35 @@ import { useAuth } from '../lib/auth';
 import { adminUsuarios } from '../lib/adminApi';
 import { Boton, Modal, Campo, inputCls, EncabezadoPagina } from '../components/ui';
 
-interface UsuarioRow { id: string; nombre: string; email: string | null; rol: Rol; activo: boolean; }
+interface UsuarioRow {
+  id: string; nombre: string; email: string | null;
+  rol: Rol; rol_secundario: Rol | null; activo: boolean;
+}
 
+// Roles principales (catálogo). El secundario solo puede ser Inspector.
 export const ROLES: { valor: Rol; label: string }[] = [
   { valor: 'administrador', label: 'Administrador' },
   { valor: 'director', label: 'Director' },
-  { valor: 'direccion_general', label: 'Dirección general' },
-  { valor: 'parques', label: 'Parques' },
-  { valor: 'archivo', label: 'Mesa de entrada / Archivo' },
+  { valor: 'jefe_departamento', label: 'Jefe de Departamento' },
+  { valor: 'mesa_entrada', label: 'Mesa de Entrada' },
+  { valor: 'tecnico_administrativo', label: 'Técnico Administrativo' },
   { valor: 'inspector', label: 'Inspector' },
-  { valor: 'consulta', label: 'Consulta' },
 ];
+
+const ERRORES: Record<string, string> = {
+  YA_EXISTE_MESA_ENTRADA: 'Ya hay un agente con el rol de Mesa de Entrada. Cambiá ese primero.',
+  ROL_SECUNDARIO_INVALIDO: 'El rol secundario solo puede ser Inspector.',
+  ROL_PRINCIPAL_INVALIDO: 'Rol principal inválido.',
+  SOLO_ADMIN: 'Solo un administrador puede cambiar roles.',
+};
+const traduce = (m: string) => Object.keys(ERRORES).find((k) => m.includes(k)) ? ERRORES[Object.keys(ERRORES).find((k) => m.includes(k))!] : m;
 
 export default function Usuarios() {
   const qc = useQueryClient();
   const { esAdmin } = usePermisos();
   const { perfil } = useAuth();
   const [modal, setModal] = useState(false);
-  const [form, setForm] = useState({ nombre: '', email: '', password: '', rol: 'consulta' as Rol });
+  const [form, setForm] = useState({ nombre: '', email: '', password: '', rol: 'inspector' as Rol });
   const [reset, setReset] = useState<{ u: UsuarioRow; password: string } | null>(null);
   const [msg, setMsg] = useState('');
 
@@ -31,7 +42,7 @@ export default function Usuarios() {
     enabled: esAdmin,
     queryKey: ['usuarios-admin'],
     queryFn: async () => {
-      const { data, error } = await supabase.from('usuarios').select('id, nombre, email, rol, activo').order('nombre');
+      const { data, error } = await supabase.from('usuarios').select('id, nombre, email, rol, rol_secundario, activo').order('nombre');
       if (error) throw error;
       return data as UsuarioRow[];
     },
@@ -44,9 +55,16 @@ export default function Usuarios() {
     onSuccess: () => { setModal(false); setMsg(''); refresca(); },
     onError: (e: Error) => setMsg(e.message),
   });
-  const setRol = useMutation({
-    mutationFn: (v: { user_id: string; rol: Rol }) => adminUsuarios({ action: 'set_rol', ...v }),
-    onSuccess: refresca, onError: (e: Error) => setMsg(e.message),
+  // Asignación de roles (principal + secundario) vía RPC admin_set_roles (solo admin).
+  const setRoles = useMutation({
+    mutationFn: async (v: { user_id: string; principal: Rol; secundario: Rol | null }) => {
+      const { error } = await supabase.rpc('admin_set_roles', {
+        p_user: v.user_id, p_principal: v.principal, p_secundario: v.secundario,
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => { setMsg(''); refresca(); },
+    onError: (e: Error) => setMsg(traduce(e.message)),
   });
   const setActivo = useMutation({
     mutationFn: (v: { user_id: string; activo: boolean }) => adminUsuarios({ action: 'set_activo', ...v }),
@@ -77,7 +95,7 @@ export default function Usuarios() {
       <EncabezadoPagina
         titulo="Usuarios y roles"
         descripcion={`${usuarios.length} usuarios`}
-        accion={<Boton onClick={() => { setForm({ nombre: '', email: '', password: '', rol: 'consulta' }); setMsg(''); setModal(true); }}>+ Nuevo usuario</Boton>}
+        accion={<Boton onClick={() => { setForm({ nombre: '', email: '', password: '', rol: 'inspector' }); setMsg(''); setModal(true); }}>+ Nuevo usuario</Boton>}
       />
 
       {msg && <div className="mb-4 text-sm bg-slate-100 border border-slate-200 rounded-lg px-3 py-2 text-slate-700">{msg}</div>}
@@ -88,21 +106,30 @@ export default function Usuarios() {
             <tr>
               <th className="px-4 py-3 font-medium">Nombre</th>
               <th className="px-4 py-3 font-medium">Email</th>
-              <th className="px-4 py-3 font-medium">Rol</th>
+              <th className="px-4 py-3 font-medium">Rol principal</th>
+              <th className="px-4 py-3 font-medium">Rol secundario</th>
               <th className="px-4 py-3 font-medium">Estado</th>
               <th className="px-4 py-3" />
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
-            {isLoading && <tr><td colSpan={5} className="px-4 py-6 text-center text-slate-400">Cargando…</td></tr>}
+            {isLoading && <tr><td colSpan={6} className="px-4 py-6 text-center text-slate-400">Cargando…</td></tr>}
             {usuarios.map((u) => (
               <tr key={u.id} className="hover:bg-slate-50">
                 <td className="px-4 py-3 font-medium text-slate-800">{u.nombre}</td>
                 <td className="px-4 py-3 text-slate-600">{u.email ?? '—'}</td>
                 <td className="px-4 py-3">
                   <select className={`${inputCls} py-1`} value={u.rol}
-                    onChange={(e) => setRol.mutate({ user_id: u.id, rol: e.target.value as Rol })}>
+                    onChange={(e) => setRoles.mutate({ user_id: u.id, principal: e.target.value as Rol, secundario: u.rol_secundario })}>
                     {ROLES.map((r) => <option key={r.valor} value={r.valor}>{r.label}</option>)}
+                  </select>
+                </td>
+                <td className="px-4 py-3">
+                  <select className={`${inputCls} py-1`} value={u.rol_secundario ?? ''}
+                    disabled={u.rol === 'inspector'}
+                    onChange={(e) => setRoles.mutate({ user_id: u.id, principal: u.rol, secundario: (e.target.value || null) as Rol | null })}>
+                    <option value="">— Ninguno</option>
+                    <option value="inspector">Inspector</option>
                   </select>
                 </td>
                 <td className="px-4 py-3">
@@ -126,7 +153,10 @@ export default function Usuarios() {
           </tbody>
         </table>
       </div>
-      <p className="text-xs text-slate-400 mt-3">Rol <strong>Mesa de entrada / Archivo</strong>: registra y deriva documentación, y puede delegar su función desde “Mi cuenta”.</p>
+      <p className="text-xs text-slate-400 mt-3">
+        Solo el administrador edita roles. <strong>Mesa de Entrada</strong>: único a la vez (puede delegar su función desde “Mi cuenta”).
+        El rol secundario <strong>Inspector</strong> habilita la app de actas sin cambiar los permisos del rol principal.
+      </p>
 
       {/* Modal: nuevo usuario */}
       <Modal titulo="Nuevo usuario" abierto={modal} onCerrar={() => setModal(false)}>
@@ -141,13 +171,13 @@ export default function Usuarios() {
             <Campo label="Contraseña genérica (ej: DNI)">
               <input className={inputCls} required minLength={6} value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} />
             </Campo>
-            <Campo label="Rol">
+            <Campo label="Rol principal">
               <select className={inputCls} value={form.rol} onChange={(e) => setForm({ ...form, rol: e.target.value as Rol })}>
                 {ROLES.map((r) => <option key={r.valor} value={r.valor}>{r.label}</option>)}
               </select>
             </Campo>
           </div>
-          <p className="text-xs text-slate-500">El usuario después podrá cambiar esta contraseña desde “Mi cuenta”. Mínimo 6 caracteres.</p>
+          <p className="text-xs text-slate-500">El rol secundario se asigna después desde la tabla. El usuario puede cambiar su contraseña desde “Mi cuenta”. Mínimo 6 caracteres.</p>
           {crear.isError && <p className="text-sm text-red-600">{(crear.error as Error).message}</p>}
           <div className="flex justify-end gap-2 pt-2">
             <Boton type="button" variante="secundario" onClick={() => setModal(false)}>Cancelar</Boton>

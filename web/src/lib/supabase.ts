@@ -12,13 +12,14 @@ if (!url || !key) {
 export const supabase = createClient(url, key);
 
 export type Rol =
-  | 'administrador' | 'director' | 'direccion_general'
-  | 'parques' | 'archivo' | 'inspector' | 'consulta';
+  | 'administrador' | 'director' | 'jefe_departamento'
+  | 'mesa_entrada' | 'tecnico_administrativo' | 'inspector';
 
 export interface Usuario {
   id: string;
   nombre: string;
   email: string | null;
   rol: Rol;
+  rol_secundario: Rol | null;
   activo: boolean;
 }

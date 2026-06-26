@@ -22,7 +22,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (!userId) { setPerfil(null); setEmpresaId(null); return; }
     const { data: u } = await supabase
       .from('usuarios')
-      .select('id, nombre, email, rol, activo')
+      .select('*')
       .eq('id', userId)
       .maybeSingle();
     setPerfil(u as Usuario | null);
