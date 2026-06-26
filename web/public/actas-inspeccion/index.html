@@ -3001,6 +3001,8 @@ async function generarInforme() {
 .pending-card .pc-txt{font-size:.92rem;color:#7c2d12}
 .pc-actions{display:flex;gap:8px;margin-top:10px}
 .pc-actions .btn{flex:1}
+.cox-spin{width:34px;height:34px;border:3px solid #ffe3d2;border-top-color:#ff682c;border-radius:50%;animation:coxspin .8s linear infinite}
+@keyframes coxspin{to{transform:rotate(360deg)}}
 </style>
 
 <div class="cox-modal" id="firmaModal">
@@ -3035,6 +3037,17 @@ async function generarInforme() {
     <div class="cox-actions">
       <button class="btn btn-ghost" onclick="document.getElementById('agent2Pick').classList.remove('show')">Cancelar</button>
       <button class="btn btn-primary" onclick="confirmarAgent2()">Enviar solicitud</button>
+    </div>
+  </div>
+</div>
+
+<div class="cox-modal" id="agent2Wait">
+  <div class="cox-card" style="text-align:center">
+    <div class="cox-spin" style="margin:4px auto 14px"></div>
+    <h3>Esperando confirmación</h3>
+    <p style="font-size:.92rem;color:#475569;margin:0 0 4px">No podés continuar hasta que <b><span id="waitName"></span></b> acepte la designación como Agente 2 desde su cuenta.</p>
+    <div class="cox-actions">
+      <button class="btn btn-ghost" onclick="cancelarAgent2()">Cancelar y continuar solo</button>
     </div>
   </div>
 </div>
@@ -3166,7 +3179,7 @@ async function confirmarAgent2() {
   if (r.error) { console.error(r.error); toast('No se pudo enviar la solicitud'); return; }
   _desigId = r.data;
   document.getElementById('agent2Pick').classList.remove('show');
-  toast('Solicitud enviada a ' + nombre + '. Esperando aceptación…');
+  showAgent2Wait(nombre);
   renderAgentesBox();
   subscribeDesig(_desigId);
 }
@@ -3177,10 +3190,10 @@ function subscribeDesig(id) {
       var rr = p.new;
       if (rr.estado === 'aceptada') {
         window.AGENT2 = { id: rr.inspector2_id, nombre: rr.inspector2_nombre, firma: rr.inspector2_firma };
-        _desigId = null; applyInspectorIdentity(); beep();
+        _desigId = null; hideAgent2Wait(); applyInspectorIdentity(); beep();
         toast((rr.inspector2_nombre || 'El agente') + ' aceptó la designación ✓');
       } else if (rr.estado === 'rechazada' || rr.estado === 'cancelada') {
-        _desigId = null; window.AGENT2 = null; applyInspectorIdentity();
+        _desigId = null; window.AGENT2 = null; hideAgent2Wait(); applyInspectorIdentity();
         toast('La designación fue ' + rr.estado);
       }
     }).subscribe();
@@ -3188,10 +3201,12 @@ function subscribeDesig(id) {
 async function cancelarAgent2() {
   if (!_desigId) return;
   await supa.rpc('cancelar_designacion', { p_id: _desigId });
-  _desigId = null; renderAgentesBox();
+  _desigId = null; hideAgent2Wait(); renderAgentesBox();
 }
 function quitarAgent2() { window.AGENT2 = null; applyInspectorIdentity(); }
 function renderAgents(){ try { renderAgentesBox(); } catch(e){} }
+function showAgent2Wait(nombre){ var w=document.getElementById('waitName'); if(w) w.textContent=nombre||'el otro inspector'; var m=document.getElementById('agent2Wait'); if(m) m.classList.add('show'); }
+function hideAgent2Wait(){ var m=document.getElementById('agent2Wait'); if(m) m.classList.remove('show'); }
 
 /* ---- Panel de solicitudes pendientes (yo como Agente 2) ---- */
 async function loadPending() {
