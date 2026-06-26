@@ -1357,9 +1357,9 @@ input.invalid,textarea.invalid,select.invalid{border-color:var(--danger)!importa
 <div class="sheet-overlay" id="settingsOverlay" onclick="closeSettings(event)"></div>
 <div class="sheet" id="settingsSheet">
   <div class="sheet-handle"></div>
-  <h3>Configuración</h3>
-  <p class="sub">Numeración, copias de seguridad y datos.</p>
-  <div class="set-block">
+  <h3>Mi cuenta</h3>
+  <p class="sub">Sesión y firma digital.</p>
+  <div class="set-block" style="display:none">
     <div class="set-title">Numeración correlativa</div>
     <p class="set-desc">Si ya hiciste actas este año de forma manual, indicá desde qué número debe continuar la numeración automática para mantener la correlatividad.</p>
     <label class="field-label">Comenzar a numerar desde el N°</label>
@@ -1369,7 +1369,7 @@ input.invalid,textarea.invalid,select.invalid{border-color:var(--danger)!importa
       <span id="nextNumText">—</span>
     </div>
   </div>
-  <div class="set-block">
+  <div class="set-block" style="display:none">
     <div class="set-title">Inspectores registrados</div>
     <p class="set-desc">Cargá los agentes que usan el sistema. Después aparecen como sugerencia al escribir el nombre en el acta (paso 1 y firmas).</p>
     <div class="insp-add">
@@ -1378,7 +1378,7 @@ input.invalid,textarea.invalid,select.invalid{border-color:var(--danger)!importa
     </div>
     <div class="insp-list" id="inspList"></div>
   </div>
-  <div class="set-block">
+  <div class="set-block" style="display:none">
     <div class="set-title">Copias de seguridad</div>
     <p class="set-desc">Descargá un respaldo de todas las inspecciones (incluye fotos y firmas) o restauralo en otro dispositivo. También podés exportar el historial a Excel/CSV.</p>
     <div class="sheet-actions" style="flex-wrap:wrap">
@@ -1401,7 +1401,6 @@ input.invalid,textarea.invalid,select.invalid{border-color:var(--danger)!importa
   </div>
   <div class="sheet-actions">
     <button class="btn btn-ghost" onclick="closeSettings()">Cerrar</button>
-    <button class="btn btn-primary" onclick="saveSettings()">Guardar numeración</button>
   </div>
 </div>
 
@@ -3194,7 +3193,7 @@ function subscribeDesig(id) {
       var rr = p.new;
       if (rr.estado === 'aceptada') {
         window.AGENT2 = { id: rr.inspector2_id, nombre: rr.inspector2_nombre, firma: rr.inspector2_firma };
-        window._coDesigId = rr.id; _desigId = null; hideAgent2Wait(); applyInspectorIdentity(); startFotoSyncA1(window._draftId); beep();
+        window._coDesigId = rr.id; _desigId = null; hideAgent2Wait(); applyInspectorIdentity(); startFotoSyncA1(window._draftId); startFormBroadcastA1(window._draftId); beep();
         toast((rr.inspector2_nombre || 'El agente') + ' aceptó la designación ✓');
       } else if (rr.estado === 'rechazada' || rr.estado === 'cancelada') {
         _desigId = null; window.AGENT2 = null; hideAgent2Wait(); applyInspectorIdentity();
@@ -3235,10 +3234,13 @@ function renderPending(pend, activas) {
   });
   (activas || []).forEach(function (d) {
     html += '<div class="pending-card" style="background:#eef6ff;border-color:#bfdbfe"><div class="pc-txt">Inspección activa con <b>' + esc(d.inspector1_nombre || 'el titular') +
-      '</b>. Podés aportar fotos desde tu dispositivo.</div>' +
-      '<div class="pc-actions"><button class="btn btn-primary" onclick="openAportarFotos(\'' + d.draft_id + '\')">📷 Aportar fotos</button></div></div>';
+      '</b>. Seguí lo que carga y sumá fotos.</div>' +
+      '<div class="pc-actions"><button class="btn btn-primary" onclick="openAportarFotos(\'' + d.draft_id + '\')">👁 Ver inspección / fotos</button></div></div>';
   });
   p.innerHTML = html;
+  var fab = document.getElementById('coFab');
+  if (activas && activas.length) { window._coDraftId = activas[0].draft_id; if (fab) fab.style.display = 'block'; }
+  else if (fab) { fab.style.display = 'none'; }
 }
 async function aceptarDesig(id, draftId) {
   if (!CURRENT_USER.firma) { toast('Registrá tu firma digital primero'); openFirmaModal(); return; }
@@ -3305,8 +3307,11 @@ function renderSigList() {
 <div class="cox-modal" id="aportarModal">
   <div class="cox-card" style="max-width:520px">
     <h3>Aportar fotos a la inspección</h3>
-    <p style="font-size:.85rem;color:#64748b;margin:0 0 6px">Tus fotos se suman <b>en vivo</b> al acta del inspector titular. Ves la galería de ambos.</p>
-    <div id="coGaleria" style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;max-height:48vh;overflow:auto;margin:8px 0"></div>
+    <p style="font-size:.85rem;color:#64748b;margin:0 0 6px">Seguí en vivo lo que carga el inspector y sumá fotos.</p>
+    <div style="font-weight:700;font-size:.9rem;color:#15202e;margin:2px 0 4px">Lo que está cargando el inspector</div>
+    <div id="coFormView" style="background:#f8fafc;border:1px solid #eef0f3;border-radius:10px;padding:10px;max-height:30vh;overflow:auto;margin-bottom:8px"></div>
+    <div style="font-weight:700;font-size:.9rem;color:#15202e;margin:2px 0 4px">Fotos (de ambos)</div>
+    <div id="coGaleria" style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;max-height:34vh;overflow:auto;margin:0 0 8px"></div>
     <input type="file" id="coFotoInput" accept="image/*" capture="environment" multiple style="display:none" onchange="addCoFoto(this.files)">
     <div class="cox-actions">
       <button class="btn btn-ghost" onclick="closeAportarFotos()">Cerrar</button>
@@ -3354,7 +3359,8 @@ async function finalizeCoinspeccion() {
 }
 function resetCoState() {
   try { if (_chFotos) supa.removeChannel(_chFotos); } catch (e) {}
-  _chFotos = null; window._coDesigId = null;
+  try { if (_chForm) supa.removeChannel(_chForm); } catch (e) {}
+  _chFotos = null; _chForm = null; window._coDesigId = null;
 }
 // Cierra la co-inspección en curso SIN guardar (descartar acta / empezar otra).
 async function cerrarActaActiva() {
@@ -3376,6 +3382,7 @@ function openAportarFotos(draftId) {
   window._coDraftId = draftId;
   document.getElementById('aportarModal').classList.add('show');
   loadCoGaleria();
+  startFormViewA2(draftId);
   try { if (_chCoFotos) supa.removeChannel(_chCoFotos); } catch (e) {}
   _chCoFotos = supa.channel('cofotos_' + draftId)
     .on('postgres_changes', { event: '*', schema: 'public', table: 'actas_fotos_draft', filter: 'draft_id=eq.' + draftId }, function () { loadCoGaleria(); })
@@ -3384,7 +3391,7 @@ function openAportarFotos(draftId) {
 function closeAportarFotos() {
   document.getElementById('aportarModal').classList.remove('show');
   try { if (_chCoFotos) supa.removeChannel(_chCoFotos); } catch (e) {}
-  _chCoFotos = null;
+  _chCoFotos = null; stopFormViewA2();
 }
 async function loadCoGaleria() {
   if (!window._coDraftId) return;
@@ -3413,6 +3420,66 @@ function addCoFoto(files) {
 async function delCoFoto(id) {
   var r = await supa.from('actas_fotos_draft').delete().eq('id', id);
   if (r.error) { console.error(r.error); toast('No se pudo borrar'); } else loadCoGaleria();
+}
+</script>
+
+<button id="coFab" onclick="document.getElementById('coFotoInput').click()" title="Sumar foto"
+  style="display:none;position:fixed;right:18px;bottom:18px;z-index:9000;width:60px;height:60px;border-radius:50%;border:none;background:linear-gradient(135deg,#ff682c,#e85420);color:#fff;font-size:26px;box-shadow:0 10px 24px -8px rgba(232,84,32,.7);cursor:pointer">📷</button>
+
+<script>
+/* ===== Vista en vivo del acta para el Agente 2 (broadcast) ===== */
+var _chForm = null, _formTimer = null;   // Agente 1 emite
+var _chFormA2 = null;                     // Agente 2 recibe
+
+// ---- Agente 1: emitir el estado del formulario ----
+function startFormBroadcastA1(draftId) {
+  if (!draftId) return;
+  try { if (_chForm) supa.removeChannel(_chForm); } catch (e) {}
+  _chForm = supa.channel('coform_' + draftId, { config: { broadcast: { self: false } } })
+    .on('broadcast', { event: 'hello' }, function () { sendFormSnapshot(); })
+    .subscribe();
+  var wiz = document.getElementById('screenWizard');
+  if (wiz && !wiz._coBound) {
+    wiz._coBound = true;
+    wiz.addEventListener('input', scheduleFormBroadcast, true);
+    wiz.addEventListener('change', scheduleFormBroadcast, true);
+  }
+}
+function scheduleFormBroadcast() { if (!_chForm) return; clearTimeout(_formTimer); _formTimer = setTimeout(sendFormSnapshot, 500); }
+function sendFormSnapshot() {
+  if (!_chForm) return;
+  try { _chForm.send({ type: 'broadcast', event: 'form', payload: { datos: collectFormData() } }); } catch (e) {}
+}
+
+// ---- Agente 2: recibir y mostrar ----
+function startFormViewA2(draftId) {
+  try { if (_chFormA2) supa.removeChannel(_chFormA2); } catch (e) {}
+  renderCoForm(null);
+  _chFormA2 = supa.channel('coform_' + draftId, { config: { broadcast: { self: false } } })
+    .on('broadcast', { event: 'form' }, function (m) { renderCoForm(m.payload && m.payload.datos); })
+    .subscribe(function (status) { if (status === 'SUBSCRIBED') { try { _chFormA2.send({ type: 'broadcast', event: 'hello', payload: {} }); } catch (e) {} } });
+}
+function stopFormViewA2() { try { if (_chFormA2) supa.removeChannel(_chFormA2); } catch (e) {} _chFormA2 = null; }
+function renderCoForm(d) {
+  var el = document.getElementById('coFormView'); if (!el) return;
+  if (!d) { el.innerHTML = '<div style="color:#94a3b8;font-size:.85rem">Esperando datos del inspector…</div>'; return; }
+  function row(lbl, val) {
+    if (!val) return '';
+    return '<div style="display:flex;gap:6px;padding:2px 0;font-size:.85rem"><span style="color:#64748b;min-width:118px;flex:none">' + lbl + '</span><span style="color:#15202e;font-weight:600">' + esc(String(val)) + '</span></div>';
+  }
+  var chips = [];
+  [['accesoPredi', 'Acceso al predio'], ['accesoInterior', 'Acceso interior'], ['noPudoAcceder', 'No se pudo acceder'],
+   ['enActividad', 'En actividad'], ['sinActividad', 'Sin actividad'], ['enConstruccion', 'En construcción'],
+   ['conConstruccion', 'Construcción finalizada'], ['cercado', 'Cercado']].forEach(function (p) { if (d[p[0]]) chips.push(p[1]); });
+  var html =
+    row('N° acta', (d.actaNum ? (d.actaNum + (d.actaYear ? '/' + d.actaYear : '')) : '')) +
+    row('Empresa', d.razonSocial) + row('CUIT', d.cuit) +
+    row('Establecimiento', d.establecimiento) + row('Parque', d.parqueIndustrial) +
+    row('Ciudad', d.ciudad) + row('Fecha/hora', (d.fecha || '') + (d.hora ? ' ' + d.hora : '')) +
+    row('Responsable', ((d.respNombre || '') + ' ' + (d.respApellido || '')).trim()) + row('DNI', d.respDni) +
+    row('Actividad', d.detalleActividad) + row('Productos', d.productos) + row('Observaciones', d.otrasObs) +
+    (chips.length ? '<div style="margin-top:6px;display:flex;flex-wrap:wrap;gap:4px">' + chips.map(function (c) { return '<span style="background:#eef2f7;border-radius:999px;padding:2px 8px;font-size:.75rem">✓ ' + esc(c) + '</span>'; }).join('') + '</div>' : '');
+  el.innerHTML = html || '<div style="color:#94a3b8;font-size:.85rem">El inspector aún no cargó datos.</div>';
 }
 </script>
 
