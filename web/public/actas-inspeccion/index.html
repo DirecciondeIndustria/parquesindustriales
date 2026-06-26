@@ -934,7 +934,21 @@ input.invalid,textarea.invalid,select.invalid{border-color:var(--danger)!importa
 
 /* ═══════════ LOGIN (acceso de inspectores) ═══════════ */
 #loginScreen{position:fixed;inset:0;z-index:800;display:none;align-items:center;justify-content:center;padding:24px;
-  background:linear-gradient(160deg,var(--navy-700) 0%,var(--navy-900) 100%);overflow:auto}
+  background:radial-gradient(900px 520px at 50% -12%, rgba(255,104,44,.12), transparent 60%),radial-gradient(760px 520px at 50% 120%, rgba(33,112,140,.09), transparent 55%),#f7f4ef;overflow:auto}
+.au-card{width:100%;max-width:380px;background:#fff;border-radius:22px;padding:30px 26px 24px;text-align:center;border:1px solid #eef0f3;box-shadow:0 26px 70px -22px rgba(143,52,22,.30);font-family:'Public Sans',system-ui,-apple-system,'Segoe UI',sans-serif}
+.au-logo{display:block;width:100%;max-width:236px;height:auto;margin:0 auto 20px}
+.au-title{font-size:26px;font-weight:800;letter-spacing:-.02em;margin:0;background:linear-gradient(135deg,#ff682c 0%,#ff8540 55%,#ffb109 100%);-webkit-background-clip:text;background-clip:text;color:transparent}
+.au-sub{font-size:13.5px;color:#64748b;margin:6px 0 22px;line-height:1.5}
+.au-field{text-align:left;margin-bottom:14px}
+.au-field label{display:block;font-size:13px;font-weight:600;color:#334155;margin-bottom:6px}
+.au-field input{width:100%;box-sizing:border-box;padding:11px 13px;font-size:15px;font-family:inherit;color:#15202e;background:#fff;border:1px solid #d4dde8;border-radius:11px;outline:none;transition:border-color .15s,box-shadow .15s}
+.au-field input:focus{border-color:#ff682c;box-shadow:0 0 0 3px rgba(255,104,44,.15)}
+.au-error{background:#fdecec;border:1px solid #f3b9b9;color:#a12020;border-radius:10px;padding:10px 12px;font-size:13px;margin-bottom:12px;text-align:left;line-height:1.45}
+.au-btn{width:100%;padding:12px;font-size:15px;font-weight:700;font-family:inherit;color:#fff;border:none;border-radius:11px;cursor:pointer;background:linear-gradient(135deg,#ff682c 0%,#e85420 100%);box-shadow:0 10px 24px -10px rgba(232,84,32,.6);transition:filter .15s,transform .05s}
+.au-btn:hover{filter:brightness(1.05)}
+.au-btn:active{transform:translateY(1px)}
+.au-btn:disabled{opacity:.6;cursor:default}
+.au-foot{font-size:11px;color:#94a3b8;margin-top:20px;letter-spacing:.02em}
 #loginScreen.show{display:flex}
 .login-card{width:100%;max-width:380px;background:var(--card);border-radius:var(--r-lg);padding:28px 24px 22px;box-shadow:var(--sh-3);text-align:center;animation:cardIn .4s var(--ease-out)}
 .login-logo{height:46px;background:#fff;border-radius:11px;padding:8px 14px;display:inline-flex;align-items:center;margin-bottom:18px;box-shadow:var(--sh-1)}
@@ -1393,19 +1407,19 @@ input.invalid,textarea.invalid,select.invalid{border-color:var(--danger)!importa
 
 <!-- LOGIN (acceso de inspectores) -->
 <div id="loginScreen">
-  <div class="login-card">
-    <div class="login-logo"><img id="loginLogo" alt="Ministerio de Producción"></div>
-    <h2>Acceso de Inspectores</h2>
-    <p class="login-sub">Ingresá con tu usuario del SIGPIP para cargar inspecciones.</p>
+  <div class="au-card">
+    <img class="au-logo" id="loginLogo" alt="Ministerio de Producción del Chubut">
+    <h1 class="au-title">Acceso Inspectores</h1>
+    <p class="au-sub">Dirección de Industria · Ministerio de Producción del Chubut</p>
     <form onsubmit="doLogin(event)">
-      <div class="field"><label class="field-label">Email</label>
+      <div class="au-field"><label>Email</label>
         <input type="email" id="loginEmail" inputmode="email" autocomplete="username" placeholder="tu.usuario@chubut.gov.ar"></div>
-      <div class="field"><label class="field-label">Contraseña</label>
+      <div class="au-field"><label>Contraseña</label>
         <input type="password" id="loginPass" autocomplete="current-password" placeholder="••••••••"></div>
-      <div class="login-error" id="loginError" style="display:none"></div>
-      <button class="btn btn-primary" id="loginBtn" type="submit" style="width:100%">Ingresar</button>
+      <div class="au-error" id="loginError" style="display:none"></div>
+      <button class="au-btn" id="loginBtn" type="submit">Ingresar</button>
     </form>
-    <div class="login-foot">Ministerio de Producción · Gobierno del Chubut</div>
+    <p class="au-foot">Gobierno de la Provincia del Chubut</p>
   </div>
 </div>
 
