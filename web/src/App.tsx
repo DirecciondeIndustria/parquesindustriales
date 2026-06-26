@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { useAuth } from './lib/auth';
 import Layout from './components/Layout';
 import Login from './pages/Login';
@@ -28,7 +28,10 @@ export default function App() {
     return <div className="min-h-full grid place-items-center text-slate-500">Cargando…</div>;
   }
 
-  if (!session) return <Login />;
+  if (!session) {
+    const esEmpresas = window.location.pathname.toLowerCase().startsWith('/empresas');
+    return <Login variant={esEmpresas ? 'empresas' : 'sigpip'} />;
+  }
 
   // Cuenta de empresa (portal externo de solo lectura).
   if (!perfil && empresaId) return <Portal />;
@@ -69,6 +72,7 @@ export default function App() {
           <Route path="auditoria" element={<Auditoria />} />
           <Route path="usuarios" element={<Usuarios />} />
           <Route path="mi-cuenta" element={<MiCuenta />} />
+          <Route path="*" element={<Navigate to="/" replace />} />
         </Route>
       </Routes>
     </BrowserRouter>

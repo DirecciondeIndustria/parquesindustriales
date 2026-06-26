@@ -34,7 +34,12 @@ const authCSS = `
 .au-foot{font-size:11px;color:#94a3b8;margin-top:20px;letter-spacing:.02em;}
 `;
 
-export default function Login() {
+export default function Login({ variant = 'sigpip' }: { variant?: 'sigpip' | 'empresas' }) {
+  const esEmpresas = variant === 'empresas';
+  const titulo = esEmpresas ? 'Portal de Empresas' : 'SIGPIP';
+  const subtitulo = esEmpresas
+    ? 'Acceso para empresas de Parques Industriales · Chubut'
+    : 'Dirección de Industria · Ministerio de Producción del Chubut';
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -53,8 +58,8 @@ export default function Login() {
       <style>{authCSS}</style>
       <div className="au-card">
         <img className="au-logo" src="/logo.png" alt="Ministerio de Producción del Chubut" />
-        <h1 className="au-title">SIGPIP</h1>
-        <p className="au-sub">Dirección de Industria · Ministerio de Producción del Chubut</p>
+        <h1 className="au-title">{titulo}</h1>
+        <p className="au-sub">{subtitulo}</p>
         <form onSubmit={onSubmit}>
           <div className="au-field">
             <label>Email</label>
