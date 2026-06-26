@@ -2028,6 +2028,7 @@ async function finishForm() {
     const d = collectFormData();
     d.agente1Id = (window.CURRENT_USER && CURRENT_USER.id) || null;
     d.agente2Id = (window.AGENT2 && AGENT2.id) || null;
+    await mergeSharedFotos();
     const record = {
       numero: parseInt(d.actaNum) || 0,
       anio: parseInt(d.actaYear) || new Date().getFullYear(),
@@ -2064,6 +2065,7 @@ async function finishForm() {
     document.getElementById('doneText').textContent =
       `Acta Nº ${String(record.numero).padStart(3,'0')}/${record.anio} guardada ${dest}.`;
     document.getElementById('doneScreen').style.display = 'block';
+    finalizeCoinspeccion();
     window.scrollTo({ top: 0, behavior: 'smooth' });
   } catch (err) {
     console.error(err);
@@ -2094,6 +2096,7 @@ function addPhotos(files, fromFab) {
   arr.forEach(file => {
     compressImage(file, 1800, 0.85).then(dataUrl => {
       photos.push(dataUrl);
+      shareFoto(dataUrl);
       renderPhotos(); updateFab();
       if (--pending === 0) {
         toast(`${arr.length === 1 ? 'Foto agregada' : arr.length + ' fotos agregadas'} (${photos.length} en total)`);
@@ -3152,12 +3155,12 @@ function beginInspeccion() {
 }
 function continuarSolo() {
   document.getElementById('agent2Choice').classList.remove('show');
-  window.AGENT2 = null; _desigId = null;
+  window.AGENT2 = null; _desigId = null; resetCoState();
   startNewInspeccion();
 }
 function elegirAgent2() {
   document.getElementById('agent2Choice').classList.remove('show');
-  window.AGENT2 = null; _desigId = null;
+  window.AGENT2 = null; _desigId = null; resetCoState();
   startNewInspeccion();
   openAgent2Picker();
 }
@@ -3190,7 +3193,7 @@ function subscribeDesig(id) {
       var rr = p.new;
       if (rr.estado === 'aceptada') {
         window.AGENT2 = { id: rr.inspector2_id, nombre: rr.inspector2_nombre, firma: rr.inspector2_firma };
-        _desigId = null; hideAgent2Wait(); applyInspectorIdentity(); beep();
+        window._coDesigId = rr.id; _desigId = null; hideAgent2Wait(); applyInspectorIdentity(); startFotoSyncA1(window._draftId); beep();
         toast((rr.inspector2_nombre || 'El agente') + ' aceptó la designación ✓');
       } else if (rr.estado === 'rechazada' || rr.estado === 'cancelada') {
         _desigId = null; window.AGENT2 = null; hideAgent2Wait(); applyInspectorIdentity();
@@ -3212,23 +3215,31 @@ function hideAgent2Wait(){ var m=document.getElementById('agent2Wait'); if(m) m.
 async function loadPending() {
   if (!ONLINE || !CURRENT_USER) return;
   var r = await supa.from('actas_designaciones').select('*')
-    .eq('inspector2_id', CURRENT_USER.id).eq('estado', 'pendiente')
+    .eq('inspector2_id', CURRENT_USER.id).in('estado', ['pendiente', 'aceptada'])
     .order('created_at', { ascending: false });
   if (r.error) { console.error(r.error); return; }
-  renderPending(r.data || []);
+  var rows = r.data || [];
+  renderPending(rows.filter(function (d) { return d.estado === 'pendiente'; }),
+                rows.filter(function (d) { return d.estado === 'aceptada'; }));
 }
-function renderPending(list) {
+function renderPending(pend, activas) {
   var p = document.getElementById('pendingPanel');
   if (!p) return;
-  if (!list.length) { p.innerHTML = ''; return; }
-  p.innerHTML = list.map(function (d) {
-    return '<div class="pending-card"><div class="pc-txt"><b>' + esc(d.inspector1_nombre || 'Un inspector') +
+  var html = '';
+  (pend || []).forEach(function (d) {
+    html += '<div class="pending-card"><div class="pc-txt"><b>' + esc(d.inspector1_nombre || 'Un inspector') +
       '</b> te está incorporando como <b>Agente 2</b> en una inspección.</div>' +
-      '<div class="pc-actions"><button class="btn btn-accent" onclick="aceptarDesig(\'' + d.id + '\')">Aceptar</button>' +
+      '<div class="pc-actions"><button class="btn btn-accent" onclick="aceptarDesig(\'' + d.id + '\',\'' + d.draft_id + '\')">Aceptar</button>' +
       '<button class="btn btn-ghost" onclick="rechazarDesig(\'' + d.id + '\')">Rechazar</button></div></div>';
-  }).join('');
+  });
+  (activas || []).forEach(function (d) {
+    html += '<div class="pending-card" style="background:#eef6ff;border-color:#bfdbfe"><div class="pc-txt">Inspección activa con <b>' + esc(d.inspector1_nombre || 'el titular') +
+      '</b>. Podés aportar fotos desde tu dispositivo.</div>' +
+      '<div class="pc-actions"><button class="btn btn-primary" onclick="openAportarFotos(\'' + d.draft_id + '\')">📷 Aportar fotos</button></div></div>';
+  });
+  p.innerHTML = html;
 }
-async function aceptarDesig(id) {
+async function aceptarDesig(id, draftId) {
   if (!CURRENT_USER.firma) { toast('Registrá tu firma digital primero'); openFirmaModal(); return; }
   var r = await supa.rpc('aceptar_designacion', { p_id: id });
   if (r.error) {
@@ -3238,6 +3249,7 @@ async function aceptarDesig(id) {
     return;
   }
   toast('Aceptaste la designación ✓'); loadPending();
+  if (draftId) openAportarFotos(draftId);
 }
 async function rechazarDesig(id) {
   await supa.rpc('rechazar_designacion', { p_id: id });
@@ -3247,9 +3259,10 @@ function subscribePending() {
   if (!CURRENT_USER) return;
   try { if (_chPending) supa.removeChannel(_chPending); } catch (e) {}
   _chPending = supa.channel('pending_' + CURRENT_USER.id)
-    .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'actas_designaciones', filter: 'inspector2_id=eq.' + CURRENT_USER.id }, function (p) {
-      beep();
-      toast((p.new.inspector1_nombre || 'Un inspector') + ' te incorpora como Agente 2');
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'actas_designaciones', filter: 'inspector2_id=eq.' + CURRENT_USER.id }, function (p) {
+      if (p.eventType === 'INSERT' && p.new && p.new.estado === 'pendiente') {
+        beep(); toast((p.new.inspector1_nombre || 'Un inspector') + ' te incorpora como Agente 2');
+      }
       loadPending();
     }).subscribe();
 }
@@ -3280,6 +3293,106 @@ function renderSigList() {
   cont.innerHTML = rows.join('');
   var lbl = document.getElementById('sigPersonLabel');
   if (lbl) lbl.textContent = r3 ? ('Responsable firmante: ' + r3) : '';
+}
+</script>
+
+<div class="cox-modal" id="aportarModal">
+  <div class="cox-card" style="max-width:520px">
+    <h3>Aportar fotos a la inspección</h3>
+    <p style="font-size:.85rem;color:#64748b;margin:0 0 6px">Tus fotos se suman <b>en vivo</b> al acta del inspector titular. Ves la galería de ambos.</p>
+    <div id="coGaleria" style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;max-height:48vh;overflow:auto;margin:8px 0"></div>
+    <input type="file" id="coFotoInput" accept="image/*" capture="environment" multiple style="display:none" onchange="addCoFoto(this.files)">
+    <div class="cox-actions">
+      <button class="btn btn-ghost" onclick="closeAportarFotos()">Cerrar</button>
+      <button class="btn btn-primary" onclick="document.getElementById('coFotoInput').click()">📷 Agregar foto</button>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ===== Fotos compartidas en vivo (co-inspección) ===== */
+var _chFotos = null;       // Agente 1: escucha fotos del Agente 2
+var _chCoFotos = null;     // Agente 2: galería en vivo
+
+// ---- Agente 1 (titular del acta) ----
+function startFotoSyncA1(draftId) {
+  if (!draftId) return;
+  try { if (_chFotos) supa.removeChannel(_chFotos); } catch (e) {}
+  _chFotos = supa.channel('fotos_' + draftId)
+    .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'actas_fotos_draft', filter: 'draft_id=eq.' + draftId }, function (p) {
+      var r = p.new; if (!r || r.autor_id === CURRENT_USER.id) return;
+      if (photos.indexOf(r.foto) >= 0) return;
+      photos.push(r.foto); renderPhotos(); updateFab(); beep();
+      toast('Nueva foto de ' + (r.autor_nombre || 'Agente 2'));
+    })
+    .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'actas_fotos_draft', filter: 'draft_id=eq.' + draftId }, function (p) {
+      var f = p.old && p.old.foto; if (!f) return;
+      var i = photos.indexOf(f); if (i >= 0) { photos.splice(i, 1); renderPhotos(); updateFab(); }
+    }).subscribe();
+}
+function shareFoto(dataUrl) {
+  if (!window.AGENT2 || !window._draftId) return;
+  supa.from('actas_fotos_draft').insert({ draft_id: window._draftId, autor_nombre: (CURRENT_USER && CURRENT_USER.nombre) || '', foto: dataUrl })
+    .then(function (r) { if (r.error) console.error(r.error); });
+}
+async function mergeSharedFotos() {
+  if (!window.AGENT2 || !window._draftId) return;
+  var r = await supa.from('actas_fotos_draft').select('foto').eq('draft_id', window._draftId);
+  if (r.error) { console.error(r.error); return; }
+  (r.data || []).forEach(function (row) { if (photos.indexOf(row.foto) < 0) photos.push(row.foto); });
+  renderPhotos(); updateFab();
+}
+async function finalizeCoinspeccion() {
+  try { if (window._coDesigId) await supa.rpc('finalizar_designacion', { p_id: window._coDesigId }); } catch (e) {}
+  resetCoState();
+}
+function resetCoState() {
+  try { if (_chFotos) supa.removeChannel(_chFotos); } catch (e) {}
+  _chFotos = null; window._coDesigId = null;
+}
+
+// ---- Agente 2 (aporta fotos) ----
+function openAportarFotos(draftId) {
+  window._coDraftId = draftId;
+  document.getElementById('aportarModal').classList.add('show');
+  loadCoGaleria();
+  try { if (_chCoFotos) supa.removeChannel(_chCoFotos); } catch (e) {}
+  _chCoFotos = supa.channel('cofotos_' + draftId)
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'actas_fotos_draft', filter: 'draft_id=eq.' + draftId }, function () { loadCoGaleria(); })
+    .subscribe();
+}
+function closeAportarFotos() {
+  document.getElementById('aportarModal').classList.remove('show');
+  try { if (_chCoFotos) supa.removeChannel(_chCoFotos); } catch (e) {}
+  _chCoFotos = null;
+}
+async function loadCoGaleria() {
+  if (!window._coDraftId) return;
+  var r = await supa.from('actas_fotos_draft').select('*').eq('draft_id', window._coDraftId).order('created_at');
+  var g = document.getElementById('coGaleria'); if (!g) return;
+  var rows = (r && r.data) || [];
+  if (!rows.length) { g.innerHTML = '<div style="grid-column:1/-1;color:#94a3b8;font-size:.85rem;text-align:center;padding:14px">Todavía no hay fotos. Sacá la primera.</div>'; return; }
+  g.innerHTML = rows.map(function (row) {
+    var mine = row.autor_id === CURRENT_USER.id;
+    return '<div style="position:relative;aspect-ratio:1;border-radius:8px;overflow:hidden;border:1px solid #e6ebf2">' +
+      '<img src="' + row.foto + '" style="width:100%;height:100%;object-fit:cover">' +
+      (mine ? '<button onclick="delCoFoto(\'' + row.id + '\')" style="position:absolute;top:2px;right:2px;background:rgba(220,38,38,.92);color:#fff;border:none;border-radius:50%;width:20px;height:20px;line-height:18px;cursor:pointer">×</button>' : '') +
+      '</div>';
+  }).join('');
+}
+function addCoFoto(files) {
+  var arr = Array.prototype.slice.call(files || []); if (!arr.length) return;
+  arr.forEach(function (file) {
+    compressImage(file, 1800, 0.85).then(function (dataUrl) {
+      supa.from('actas_fotos_draft').insert({ draft_id: window._coDraftId, autor_nombre: (CURRENT_USER && CURRENT_USER.nombre) || '', foto: dataUrl })
+        .then(function (r) { if (r.error) { console.error(r.error); toast('No se pudo subir la foto'); } else { toast('Foto agregada'); loadCoGaleria(); } });
+    });
+  });
+  document.getElementById('coFotoInput').value = '';
+}
+async function delCoFoto(id) {
+  var r = await supa.from('actas_fotos_draft').delete().eq('id', id);
+  if (r.error) { console.error(r.error); toast('No se pudo borrar'); } else loadCoGaleria();
 }
 </script>
 
