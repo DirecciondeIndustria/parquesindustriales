@@ -1418,6 +1418,7 @@ input.invalid,textarea.invalid,select.invalid{border-color:var(--danger)!importa
       <div class="au-error" id="loginError" style="display:none"></div>
       <button class="au-btn" id="loginBtn" type="submit">Ingresar</button>
     </form>
+    <button type="button" onclick="forgotPass()" style="display:inline-block;margin-top:14px;font-size:13px;color:#e85420;background:none;border:none;cursor:pointer;text-decoration:underline">¿Olvidaste tu contraseña?</button>
     <p class="au-foot">Gobierno de la Provincia del Chubut</p>
   </div>
 </div>
@@ -3480,6 +3481,24 @@ function renderCoForm(d) {
     row('Actividad', d.detalleActividad) + row('Productos', d.productos) + row('Observaciones', d.otrasObs) +
     (chips.length ? '<div style="margin-top:6px;display:flex;flex-wrap:wrap;gap:4px">' + chips.map(function (c) { return '<span style="background:#eef2f7;border-radius:999px;padding:2px 8px;font-size:.75rem">✓ ' + esc(c) + '</span>'; }).join('') + '</div>' : '');
   el.innerHTML = html || '<div style="color:#94a3b8;font-size:.85rem">El inspector aún no cargó datos.</div>';
+}
+</script>
+
+<script>
+async function forgotPass() {
+  var el = document.getElementById('loginEmail');
+  var email = (el && el.value || '').trim();
+  if (!email) { email = (prompt('Ingresá el email de tu cuenta:') || '').trim(); }
+  if (!email) return;
+  var errBox = document.getElementById('loginError');
+  try {
+    var r = await supa.auth.resetPasswordForEmail(email, { redirectTo: window.location.origin + '/restablecer' });
+    if (r.error) throw r.error;
+    if (errBox) { errBox.style.display = 'block'; errBox.style.background = '#e9f7ef'; errBox.style.borderColor = '#b6e3c8'; errBox.style.color = '#15803d';
+      errBox.textContent = 'Te enviamos un correo con el enlace para restablecer tu contraseña. Revisá tu bandeja (y el spam).'; }
+  } catch (e) {
+    if (errBox) { errBox.style.display = 'block'; errBox.textContent = 'No se pudo enviar el correo. Revisá el email.'; }
+  }
 }
 </script>
 

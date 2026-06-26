@@ -2,6 +2,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { useAuth } from './lib/auth';
 import Layout from './components/Layout';
 import Login from './pages/Login';
+import ResetPassword from './pages/ResetPassword';
 import Dashboard from './pages/Dashboard';
 import Parques from './pages/Parques';
 import Empresas from './pages/Empresas';
@@ -22,10 +23,15 @@ import Portal from './pages/Portal';
 import Placeholder from './pages/Placeholder';
 
 export default function App() {
-  const { session, perfil, empresaId, cargando, salir } = useAuth();
+  const { session, perfil, empresaId, cargando, recovery, salir } = useAuth();
 
   if (cargando) {
     return <div className="min-h-full grid place-items-center text-slate-500">Cargando…</div>;
+  }
+
+  // Recuperación de contraseña (llegó desde el enlace del email).
+  if (recovery || window.location.pathname.toLowerCase().startsWith('/restablecer')) {
+    return <ResetPassword />;
   }
 
   if (!session) {

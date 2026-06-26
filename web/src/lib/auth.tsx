@@ -7,6 +7,7 @@ interface AuthState {
   perfil: Usuario | null;          // personal interno (null si es cuenta de empresa)
   empresaId: string | null;        // empresa de la cuenta externa (null si es interna)
   cargando: boolean;
+  recovery: boolean;               // sesión iniciada desde el enlace de recuperar contraseña
   salir: () => Promise<void>;
 }
 
@@ -17,6 +18,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [perfil, setPerfil] = useState<Usuario | null>(null);
   const [empresaId, setEmpresaId] = useState<string | null>(null);
   const [cargando, setCargando] = useState(true);
+  const [recovery, setRecovery] = useState(false);
 
   async function cargarContexto(userId: string | undefined) {
     if (!userId) { setPerfil(null); setEmpresaId(null); return; }
@@ -48,7 +50,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setCargando(false);
     });
 
-    const { data: sub } = supabase.auth.onAuthStateChange(async (_e, s) => {
+    const { data: sub } = supabase.auth.onAuthStateChange(async (e, s) => {
+      if (e === 'PASSWORD_RECOVERY') setRecovery(true);
       setSession(s);
       await cargarContexto(s?.user.id);
     });
@@ -58,7 +61,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const salir = async () => { await supabase.auth.signOut(); };
 
   return (
-    <Ctx.Provider value={{ session, perfil, empresaId, cargando, salir }}>
+    <Ctx.Provider value={{ session, perfil, empresaId, cargando, recovery, salir }}>
       {children}
     </Ctx.Provider>
   );
