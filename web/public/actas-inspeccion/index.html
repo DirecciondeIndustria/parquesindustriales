@@ -2620,6 +2620,7 @@ function resumeDraft() {
 function discardDraft() {
   if (!confirm('¿Descartar el borrador guardado?')) return;
   clearDraft();
+  cerrarActaActiva();
   toast('Borrador descartado');
 }
 
@@ -3155,12 +3156,12 @@ function beginInspeccion() {
 }
 function continuarSolo() {
   document.getElementById('agent2Choice').classList.remove('show');
-  window.AGENT2 = null; _desigId = null; resetCoState();
+  window.AGENT2 = null; _desigId = null; if (window._coDesigId) cerrarActaActiva(); else resetCoState();
   startNewInspeccion();
 }
 function elegirAgent2() {
   document.getElementById('agent2Choice').classList.remove('show');
-  window.AGENT2 = null; _desigId = null; resetCoState();
+  window.AGENT2 = null; _desigId = null; if (window._coDesigId) cerrarActaActiva(); else resetCoState();
   startNewInspeccion();
   openAgent2Picker();
 }
@@ -3263,6 +3264,11 @@ function subscribePending() {
       if (p.eventType === 'INSERT' && p.new && p.new.estado === 'pendiente') {
         beep(); toast((p.new.inspector1_nombre || 'Un inspector') + ' te incorpora como Agente 2');
       }
+      if (p.eventType === 'UPDATE' && p.new && (p.new.estado === 'cancelada' || p.new.estado === 'finalizada')
+          && window._coDraftId && p.new.draft_id === window._coDraftId) {
+        closeAportarFotos(); window._coDraftId = null;
+        toast('El inspector titular cerró la inspección.');
+      }
       loadPending();
     }).subscribe();
 }
@@ -3349,6 +3355,20 @@ async function finalizeCoinspeccion() {
 function resetCoState() {
   try { if (_chFotos) supa.removeChannel(_chFotos); } catch (e) {}
   _chFotos = null; window._coDesigId = null;
+}
+// Cierra la co-inspección en curso SIN guardar (descartar acta / empezar otra).
+async function cerrarActaActiva() {
+  var id = window._coDesigId;
+  try {
+    if (!id && CURRENT_USER) {
+      var r = await supa.from('actas_designaciones').select('id')
+        .eq('inspector1_id', CURRENT_USER.id).eq('estado', 'aceptada')
+        .order('created_at', { ascending: false }).limit(1);
+      if (!r.error && r.data && r.data[0]) id = r.data[0].id;
+    }
+    if (id) await supa.rpc('cancelar_coinspeccion', { p_id: id });
+  } catch (e) { console.error(e); }
+  resetCoState();
 }
 
 // ---- Agente 2 (aporta fotos) ----
