@@ -64,7 +64,7 @@ export default function Login({ variant = 'sigpip' }: { variant?: 'sigpip' | 'em
           <div className="au-field">
             <label>Email</label>
             <input type="email" required value={email} autoComplete="username"
-              placeholder="tu.usuario@chubut.gov.ar"
+              placeholder={esEmpresas ? 'tu.empresa@empresa.com' : 'tu.usuario@chubut.gov.ar'}
               onChange={(e) => setEmail(e.target.value)} />
           </div>
           <div className="au-field">
