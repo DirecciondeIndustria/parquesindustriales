@@ -286,11 +286,16 @@ function DetalleActa({ a }: { a: Acta }) {
         <Dato k="Nomenclatura" v={`Ejido ${d.ejido || '—'} · Circ ${d.circ || '—'} · Sec ${d.sector || '—'} · Div ${d.division || '—'} · Parc ${d.parcela || '—'}${d.macizo ? ' · Mac ' + d.macizo : ''}`} />
       </Seccion>
 
-      {a.lat != null && a.lng != null && (
-        <Seccion titulo="Ubicación de la firma">
+      <Seccion titulo="Ubicación de la firma">
+        {a.lat != null && a.lng != null ? (
           <UbicacionFirma lat={a.lat} lng={a.lng} acc={a.geo_precision} at={a.geo_at} />
-        </Seccion>
-      )}
+        ) : (
+          <p className="text-sm text-slate-400">
+            No se registró ubicación en esta acta. Se captura automáticamente al confirmar el acta desde el celular,
+            con el GPS encendido y dando permiso de ubicación al navegador. Las actas anteriores a esta función no la tienen.
+          </p>
+        )}
+      </Seccion>
 
       <Seccion titulo="Acceso al predio">
         <Chips items={acceso} />

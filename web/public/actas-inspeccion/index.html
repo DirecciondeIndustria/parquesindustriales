@@ -2046,13 +2046,14 @@ function getGeo() {
   return new Promise(function (resolve) {
     if (!navigator.geolocation) { resolve(null); return; }
     var done = false;
-    var t = setTimeout(function () { if (!done) { done = true; resolve(null); } }, 9000);
-    navigator.geolocation.getCurrentPosition(
-      function (pos) { if (done) return; done = true; clearTimeout(t);
-        resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude, acc: pos.coords.accuracy || null }); },
-      function () { if (done) return; done = true; clearTimeout(t); resolve(null); },
-      { enableHighAccuracy: true, timeout: 8000, maximumAge: 0 }
-    );
+    function finish(v) { if (done) return; done = true; clearTimeout(t); resolve(v); }
+    var t = setTimeout(function () { finish(null); }, 18000);
+    function ok(pos) { finish({ lat: pos.coords.latitude, lng: pos.coords.longitude, acc: pos.coords.accuracy || null }); }
+    // 1º intento: alta precisión. Si falla, 2º intento rápido de baja precisión.
+    navigator.geolocation.getCurrentPosition(ok, function () {
+      navigator.geolocation.getCurrentPosition(ok, function () { finish(null); },
+        { enableHighAccuracy: false, timeout: 8000, maximumAge: 60000 });
+    }, { enableHighAccuracy: true, timeout: 12000, maximumAge: 0 });
   });
 }
 
