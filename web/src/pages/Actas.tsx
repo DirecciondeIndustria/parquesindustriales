@@ -209,10 +209,13 @@ function UbicacionFirma({ lat, lng, acc, at }: { lat: number; lng: number; acc: 
     loadLeaflet().then((L) => {
       if (cancelado || !mapEl.current) return;
       if (mapInst.current) { mapInst.current.remove(); mapInst.current = null; }
-      const map = L.map(mapEl.current, { scrollWheelZoom: false }).setView([lat, lng], 18);
+      const map = L.map(mapEl.current, { scrollWheelZoom: false }).setView([lat, lng], 17);
+      // Esri World Imagery: en zonas no urbanas la imagen llega hasta ~z17.
+      // maxNativeZoom evita los tiles grises "Map data not yet available":
+      // más allá de 17, Leaflet reescala el último nivel con imagen.
       L.tileLayer(
         'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
-        { maxZoom: 19, attribution: 'Imagery © Esri, Maxar, Earthstar Geographics' }
+        { maxZoom: 19, maxNativeZoom: 17, attribution: 'Imagery © Esri, Maxar, Earthstar Geographics' }
       ).addTo(map);
       const icon = L.divIcon({
         html: '<div style="font-size:24px;line-height:1;transform:translate(-2px,-10px)">📍</div>',
