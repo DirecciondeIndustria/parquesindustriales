@@ -17,6 +17,8 @@
 ## Funciones agregadas recientemente (ya en el código)
 - Co-inspección: 2º agente con **consentimiento**, **firmas pre-registradas**, panel de pendientes + realtime + alerta sonora.
 - **Fotos compartidas en vivo** entre los 2 inspectores; vista en vivo del acta para el Agente 2 + botón flotante de fotos.
+- **Espejo idéntico para el Agente 2**: ve el mismo wizard (mismos campos/pantallas) que carga el Agente 1, en vivo; puede navegar a pasos anteriores ("Seguir al inspector" para volver a sincronizar) y seguir sumando fotos. Reemplaza la "tablita" resumen anterior.
+- **Doble confirmación para emitir el acta**: al tocar "Finalizar", el Agente 1 queda esperando; el Agente 2 autoriza ("Firmar acta") desde su celular y recién ahí se registra. (Sin Agente 2, se guarda directo como antes.) Requiere migración `0030`.
 - Descartar acta en curso cierra la co-inspección (no guarda).
 - **Modelo de roles**: principal + secundario (Inspector) + delegación de Mesa de Entrada con consentimiento. Permisos por rol principal; borrado solo admin; un solo Mesa de Entrada.
 - **Recuperar contraseña por email** (autogestión) + reset por admin.
@@ -29,6 +31,7 @@ Correr en orden si todavía no se aplicaron:
 3. `supabase/migrations/0027_roles_modelo.sql` (modelo de roles, helpers, delegación)
 4. `supabase/migrations/0028_fotos_compartidas.sql` (fotos en vivo)
 5. `supabase/migrations/0029_cancelar_coinspeccion.sql` (cerrar co-inspección)
+6. `supabase/migrations/0030_cierre_doble_confirmacion.sql` (doble confirmación: el Agente 2 autoriza la emisión del acta)
 
 ## ⚠️ Otros pendientes de configuración (no son código)
 - **SMTP para emails de recuperación**: el correo propio de Supabase tiene límite bajo. Conectar un SMTP gratuito (Resend / Brevo / SendGrid) en *Supabase → Project Settings → Auth → SMTP*. (No hay servidor del ministerio.)
