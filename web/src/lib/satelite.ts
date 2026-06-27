@@ -4,8 +4,11 @@
 // Los tiles de arcgisonline envían CORS (*), así que el canvas no queda
 // "tainted" y se puede exportar con toDataURL.
 
+import { MAPTILER_KEY } from './maptiler';
+
 const TILE = 256;
-const TILE_URL = 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile';
+const tileUrl = (z: number, x: number, y: number) =>
+  `https://api.maptiler.com/tiles/satellite-v2/${z}/${x}/${y}.jpg?key=${MAPTILER_KEY}`;
 
 function loadImg(url: string): Promise<HTMLImageElement | null> {
   return new Promise((resolve) => {
@@ -23,7 +26,7 @@ export async function satelliteDataUrl(
   lng: number,
   opts?: { zoom?: number; grid?: number; size?: number }
 ): Promise<string | null> {
-  const zoom = opts?.zoom ?? 17;            // máximo con imagen real en zona no urbana
+  const zoom = opts?.zoom ?? 18;            // MapTiler tiene imagen real bastante más profunda
   const grid = opts?.grid ?? 3;             // 3x3 tiles alrededor del punto
   const out = opts?.size ?? 540;            // lado del recorte final (px)
   if (typeof document === 'undefined') return null;
@@ -44,7 +47,7 @@ export async function satelliteDataUrl(
   for (let dx = -half; dx <= half; dx++) {
     for (let dy = -half; dy <= half; dy++) {
       const tx = xt + dx, ty = yt + dy;
-      const url = `${TILE_URL}/${zoom}/${ty}/${tx}`;
+      const url = tileUrl(zoom, tx, ty);
       tasks.push(
         loadImg(url).then((img) => {
           if (img) ctx.drawImage(img, (dx + half) * TILE, (dy + half) * TILE);

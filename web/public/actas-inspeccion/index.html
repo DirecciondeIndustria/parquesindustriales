@@ -2070,7 +2070,7 @@ function _loadTile(url) {
 }
 async function getSatImageDataUrl(lat, lng) {
   try {
-    var zoom = 17, grid = 3, TILE = 256, out = 540, half = (grid - 1) / 2;
+    var zoom = 18, grid = 3, TILE = 256, out = 540, half = (grid - 1) / 2;
     var n = Math.pow(2, zoom);
     var xf = ((lng + 180) / 360) * n;
     var latRad = lat * Math.PI / 180;
@@ -2078,12 +2078,13 @@ async function getSatImageDataUrl(lat, lng) {
     var xt = Math.floor(xf), yt = Math.floor(yf);
     var big = document.createElement('canvas'); big.width = grid * TILE; big.height = grid * TILE;
     var ctx = big.getContext('2d'); if (!ctx) return null;
-    var base = 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile';
+    var MAPTILER_KEY = 'iSk2iGP7osZYGlLNQcCx';
     var tasks = [];
     for (var dx = -half; dx <= half; dx++) {
       for (var dy = -half; dy <= half; dy++) {
         (function (dx, dy) {
-          tasks.push(_loadTile(base + '/' + zoom + '/' + (yt + dy) + '/' + (xt + dx)).then(function (im) {
+          var url = 'https://api.maptiler.com/tiles/satellite-v2/' + zoom + '/' + (xt + dx) + '/' + (yt + dy) + '.jpg?key=' + MAPTILER_KEY;
+          tasks.push(_loadTile(url).then(function (im) {
             if (im) ctx.drawImage(im, (dx + half) * TILE, (dy + half) * TILE);
           }));
         })(dx, dy);
@@ -2598,7 +2599,7 @@ async function renderPDF(d, returnBase64) {
         try { doc.addImage(satImg, 'JPEG', gix, y, imgW, imgH); doc.setDrawColor(...C_LIGHT); doc.setLineWidth(0.3); doc.rect(gix, y, imgW, imgH); } catch (e) {}
         y += imgH + 3;
         setFont('italic', 6.5, C_GRAY);
-        doc.text('Imagery © Esri, Maxar, Earthstar Geographics', gix + imgW, y, { align: 'right' });
+        doc.text('© MapTiler © Maxar', gix + imgW, y, { align: 'right' });
         y += 4;
       }
     }

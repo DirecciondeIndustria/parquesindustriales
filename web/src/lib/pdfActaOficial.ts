@@ -237,7 +237,7 @@ export function renderActaPdf(d: any, returnBase64?: boolean): string | void {
       } catch (e) {}
       y += imgH + 3;
       setFont('italic', 6.5, C_GRAY);
-      doc.text('Imagery © Esri, Maxar, Earthstar Geographics', ix + imgW, y, { align: 'right' });
+      doc.text('© MapTiler © Maxar', ix + imgW, y, { align: 'right' });
       y += 4;
     }
   }
