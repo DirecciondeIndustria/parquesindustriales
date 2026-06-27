@@ -36,6 +36,7 @@ const txt = (v: unknown) => (v === null || v === undefined || v === '' ? '—' :
 export default function Actas() {
   const [busca, setBusca] = useState('');
   const [sel, setSel] = useState<Acta | null>(null);
+  const [vista, setVista] = useState<'lista' | 'mapa'>('lista');
 
   const { data: actas = [], isLoading, error } = useQuery({
     queryKey: ['actas_inspeccion'],
@@ -67,11 +68,28 @@ export default function Actas() {
         Vista informativa de solo lectura. Las actas se cargan desde la app móvil de inspecciones y se reflejan acá automáticamente.
       </p>
 
-      <input
-        className={`${inputCls} mb-4 max-w-sm`}
-        placeholder="Buscar por empresa, parque, CUIT, N° o inspector…"
-        value={busca} onChange={(e) => setBusca(e.target.value)}
-      />
+      <div className="flex flex-wrap items-center gap-3 mb-4">
+        <input
+          className={`${inputCls} max-w-sm flex-1 min-w-[220px]`}
+          placeholder="Buscar por empresa, parque, CUIT, N° o inspector…"
+          value={busca} onChange={(e) => setBusca(e.target.value)}
+        />
+        <div className="inline-flex rounded-lg ring-1 ring-slate-200 overflow-hidden text-sm">
+          <button
+            className={`px-3 py-2 ${vista === 'lista' ? 'bg-[var(--brand)] text-white' : 'bg-white text-slate-600 hover:bg-slate-50'}`}
+            onClick={() => setVista('lista')}
+          >Lista</button>
+          <button
+            className={`px-3 py-2 ${vista === 'mapa' ? 'bg-[var(--brand)] text-white' : 'bg-white text-slate-600 hover:bg-slate-50'}`}
+            onClick={() => setVista('mapa')}
+          >Mapa</button>
+        </div>
+        {vista === 'mapa' && (
+          <span className="text-xs text-slate-400">
+            {visibles.filter((a) => a.lat != null && a.lng != null).length} de {visibles.length} con ubicación
+          </span>
+        )}
+      </div>
 
       {error && (
         <div className="bg-red-50 border border-red-200 text-red-700 rounded-lg p-4 text-sm mb-4">
@@ -79,6 +97,9 @@ export default function Actas() {
         </div>
       )}
 
+      {vista === 'mapa' ? (
+        <MapaActas actas={visibles} onSel={setSel} />
+      ) : (
       <div className="bg-white rounded-xl shadow-sm overflow-x-auto">
         <table className="w-full text-sm">
           <thead className="bg-slate-50 text-slate-500 text-left">
@@ -124,6 +145,7 @@ export default function Actas() {
           </tbody>
         </table>
       </div>
+      )}
 
       <Modal titulo={sel ? `Acta de inspección N° ${nro(sel)}` : ''} abierto={!!sel} onCerrar={() => setSel(null)}>
         {sel && (
@@ -194,6 +216,58 @@ function loadLeaflet(): Promise<any> {
     document.head.appendChild(s);
   });
   return leafletPromise;
+}
+
+// Mapa con TODOS los puntos de inspección (actas con coordenadas).
+function MapaActas({ actas, onSel }: { actas: Acta[]; onSel: (a: Acta) => void }) {
+  const el = useRef<HTMLDivElement>(null);
+  const inst = useRef<any>(null);
+  const [fallo, setFallo] = useState(false);
+  const conGeo = actas.filter((a) => a.lat != null && a.lng != null);
+
+  useEffect(() => {
+    let cancelado = false;
+    loadLeaflet().then((L) => {
+      if (cancelado || !el.current) return;
+      if (inst.current) { inst.current.remove(); inst.current = null; }
+      const map = L.map(el.current, { scrollWheelZoom: true });
+      L.tileLayer(
+        'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+        { maxZoom: 19, maxNativeZoom: 17, attribution: 'Imagery © Esri, Maxar, Earthstar Geographics' }
+      ).addTo(map);
+      const icon = L.divIcon({
+        html: '<div style="font-size:24px;line-height:1;transform:translate(-2px,-10px)">📍</div>',
+        className: '', iconSize: [24, 24], iconAnchor: [12, 24],
+      });
+      const pts: [number, number][] = [];
+      conGeo.forEach((a) => {
+        const lat = a.lat as number, lng = a.lng as number;
+        const m = L.marker([lat, lng], { icon }).addTo(map);
+        m.bindTooltip(`N° ${nro(a)} · ${a.razon_social ?? ''}`, { direction: 'top', offset: [0, -22] });
+        m.on('click', () => onSel(a));
+        pts.push([lat, lng]);
+      });
+      if (pts.length === 1) map.setView(pts[0], 16);
+      else if (pts.length > 1) map.fitBounds(pts, { padding: [40, 40], maxZoom: 16 });
+      else map.setView([-43.3, -65.3], 6); // Chubut por defecto
+      inst.current = map;
+      setTimeout(() => { try { map.invalidateSize(); } catch { /* noop */ } }, 150);
+    }).catch(() => setFallo(true));
+    return () => { cancelado = true; if (inst.current) { inst.current.remove(); inst.current = null; } };
+  }, [actas]);
+
+  if (fallo) {
+    return <p className="text-sm text-slate-400 bg-white rounded-xl shadow-sm p-4">No se pudo cargar el mapa. Probá recargar la página.</p>;
+  }
+  return (
+    <div>
+      {conGeo.length === 0 && (
+        <p className="text-xs text-slate-400 mb-2">Ninguna de las actas mostradas tiene ubicación registrada todavía.</p>
+      )}
+      <div ref={el} className="h-[60vh] min-h-[360px] rounded-xl shadow-sm overflow-hidden ring-1 ring-slate-200 bg-slate-100" style={{ zIndex: 0 }} />
+      <p className="text-xs text-slate-400 mt-2">Pasá el cursor por un pin para ver el N° y la empresa. Hacé clic para abrir el acta.</p>
+    </div>
+  );
 }
 
 // Ubicación geográfica donde se confirmó el acta + mapa satelital (~200 m, zoom 18).
