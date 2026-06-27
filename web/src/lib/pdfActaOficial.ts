@@ -222,6 +222,26 @@ export function renderActaPdf(d: any, returnBase64?: boolean): string | void {
   sigBox(ML + boxW / 2 + 6, d.sig3, respFull, `${d.respCargo || 'Responsable'}${d.razonSocial ? ' – ' + d.razonSocial : ''}`);
   y += boxH + 12;
 
+  // Ubicación de la firma (coordenadas + imagen satelital ~zoom 17)
+  if (d.geoLat != null && d.geoLng != null) {
+    sectionTitle('Ubicación de la firma');
+    writeLabel('Coordenadas:', `${Number(d.geoLat).toFixed(6)}, ${Number(d.geoLng).toFixed(6)}`);
+    if (d.geoAcc != null) writeLabel('Precisión GPS:', `± ${Math.round(Number(d.geoAcc))} m`);
+    if (d.geoImg) {
+      const imgW = 90, imgH = 90; // tamaño mediano, proporcional (cuadrado)
+      gap(1); checkY(imgH + 6);
+      const ix = ML + (TW - imgW) / 2;
+      try {
+        doc.addImage(d.geoImg, 'JPEG', ix, y, imgW, imgH);
+        doc.setDrawColor(...C_LIGHT); doc.setLineWidth(0.3); doc.rect(ix, y, imgW, imgH);
+      } catch (e) {}
+      y += imgH + 3;
+      setFont('italic', 6.5, C_GRAY);
+      doc.text('Imagery © Esri, Maxar, Earthstar Geographics', ix + imgW, y, { align: 'right' });
+      y += 4;
+    }
+  }
+
   // Fotos
   if (d.photos && d.photos.length) {
     newPage(); sectionTitle('Registro Fotográfico');

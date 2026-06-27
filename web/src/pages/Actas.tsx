@@ -4,6 +4,7 @@ import { supabase } from '../lib/supabase';
 import { Modal, Boton, inputCls, EncabezadoPagina, Skeleton } from '../components/ui';
 import { fmtFecha } from '../lib/fechas';
 import { renderActaPdf } from '../lib/pdfActaOficial';
+import { satelliteDataUrl } from '../lib/satelite';
 
 // Acta completa cargada desde la app de inspecciones del celular.
 // Tabla `actas_inspeccion` (ver migración 0024). Vista de SOLO LECTURA.
@@ -151,7 +152,14 @@ export default function Actas() {
         {sel && (
           <>
             <div className="flex justify-end mb-3">
-              <Boton onClick={() => renderActaPdf({ actaNum: sel.numero, actaYear: sel.anio, ...(sel.datos ?? {}), photos: sel.fotos ?? [], sig1: sel.sig1, sig2: sel.sig2, sig3: sel.sig3 })}>Descargar PDF</Boton>
+              <Boton onClick={async () => {
+                const geoImg = sel.lat != null && sel.lng != null ? await satelliteDataUrl(sel.lat, sel.lng) : null;
+                renderActaPdf({
+                  actaNum: sel.numero, actaYear: sel.anio, ...(sel.datos ?? {}),
+                  photos: sel.fotos ?? [], sig1: sel.sig1, sig2: sel.sig2, sig3: sel.sig3,
+                  geoLat: sel.lat, geoLng: sel.lng, geoAcc: sel.geo_precision, geoImg,
+                });
+              }}>Descargar PDF</Boton>
             </div>
             <DetalleActa a={sel} />
           </>
