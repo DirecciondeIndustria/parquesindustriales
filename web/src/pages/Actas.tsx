@@ -1,10 +1,15 @@
 import { useState, useEffect, useRef } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
 import { Modal, Boton, inputCls, EncabezadoPagina, Skeleton } from '../components/ui';
 import { fmtFecha } from '../lib/fechas';
 import { renderActaPdf } from '../lib/pdfActaOficial';
 import { satelliteDataUrl } from '../lib/satelite';
+import { usePermisos } from '../lib/permisos';
+import {
+  type Terreno, fetchTerrenos, parseKmz, saveTerrenos, deleteTerrenosByArchivo,
+  terrenoContaining, ringToLatLng,
+} from '../lib/terrenos';
 
 // Acta completa cargada desde la app de inspecciones del celular.
 // Tabla `actas_inspeccion` (ver migración 0024). Vista de SOLO LECTURA.
@@ -38,6 +43,10 @@ export default function Actas() {
   const [busca, setBusca] = useState('');
   const [sel, setSel] = useState<Acta | null>(null);
   const [vista, setVista] = useState<'lista' | 'mapa'>('lista');
+  const [terrenosModal, setTerrenosModal] = useState(false);
+  const { puedeEditar } = usePermisos();
+
+  const { data: terrenos = [] } = useQuery({ queryKey: ['actas_terrenos'], queryFn: fetchTerrenos });
 
   const { data: actas = [], isLoading, error } = useQuery({
     queryKey: ['actas_inspeccion'],
@@ -90,6 +99,12 @@ export default function Actas() {
             {visibles.filter((a) => a.lat != null && a.lng != null).length} de {visibles.length} con ubicación
           </span>
         )}
+        {puedeEditar && (
+          <button
+            className="ml-auto px-3 py-2 text-sm rounded-lg ring-1 ring-slate-200 bg-white text-slate-600 hover:bg-slate-50"
+            onClick={() => setTerrenosModal(true)}
+          >🗺️ Terrenos (KMZ){terrenos.length ? ` · ${terrenos.length}` : ''}</button>
+        )}
       </div>
 
       {error && (
@@ -99,7 +114,7 @@ export default function Actas() {
       )}
 
       {vista === 'mapa' ? (
-        <MapaActas actas={visibles} onSel={setSel} />
+        <MapaActas actas={visibles} onSel={setSel} terrenos={terrenos} />
       ) : (
       <div className="bg-white rounded-xl shadow-sm overflow-x-auto">
         <table className="w-full text-sm">
@@ -161,9 +176,13 @@ export default function Actas() {
                 });
               }}>Descargar PDF</Boton>
             </div>
-            <DetalleActa a={sel} />
+            <DetalleActa a={sel} terrenos={terrenos} />
           </>
         )}
+      </Modal>
+
+      <Modal titulo="Terrenos (KMZ de Google Earth)" abierto={terrenosModal} onCerrar={() => setTerrenosModal(false)}>
+        <TerrenosManager terrenos={terrenos} />
       </Modal>
     </div>
   );
@@ -226,8 +245,79 @@ function loadLeaflet(): Promise<any> {
   return leafletPromise;
 }
 
-// Mapa con TODOS los puntos de inspección (actas con coordenadas).
-function MapaActas({ actas, onSel }: { actas: Acta[]; onSel: (a: Acta) => void }) {
+// Administración de terrenos: subir KMZ (varios), listarlos y borrarlos.
+function TerrenosManager({ terrenos }: { terrenos: Terreno[] }) {
+  const qc = useQueryClient();
+  const [subiendo, setSubiendo] = useState(false);
+  const [msg, setMsg] = useState('');
+
+  const grupos = Object.values(
+    terrenos.reduce((acc, t) => {
+      const k = t.archivo || '(sin nombre)';
+      (acc[k] ||= { archivo: k, count: 0 }).count++;
+      return acc;
+    }, {} as Record<string, { archivo: string; count: number }>)
+  );
+
+  async function onFiles(files: FileList | null) {
+    if (!files || !files.length) return;
+    setSubiendo(true); setMsg('');
+    let total = 0, archivos = 0, errores = 0;
+    for (const file of Array.from(files)) {
+      try {
+        const polys = await parseKmz(file);
+        if (!polys.length) { setMsg(`"${file.name}" no tenía polígonos.`); continue; }
+        await saveTerrenos(polys, file.name);
+        total += polys.length; archivos++;
+      } catch (e) { errores++; console.error(e); }
+    }
+    await qc.invalidateQueries({ queryKey: ['actas_terrenos'] });
+    setSubiendo(false);
+    setMsg(`${archivos} archivo(s), ${total} polígono(s) cargados.${errores ? ` ${errores} con error.` : ''}`);
+  }
+
+  async function borrar(archivo: string) {
+    if (!confirm(`¿Eliminar el KMZ "${archivo}" y todos sus polígonos?`)) return;
+    try { await deleteTerrenosByArchivo(archivo); await qc.invalidateQueries({ queryKey: ['actas_terrenos'] }); }
+    catch (e) { console.error(e); setMsg('No se pudo eliminar.'); }
+  }
+
+  return (
+    <div className="space-y-4">
+      <p className="text-sm text-slate-500">
+        Subí archivos <strong>KMZ</strong> de Google Earth con los polígonos de los terrenos. Cuando un acta
+        tenga coordenadas dentro de un polígono, ese terreno se dibuja sobre la imagen satelital (en el acta y
+        en el mapa general). Un mismo KMZ puede tener varios polígonos.
+      </p>
+      <input
+        type="file" accept=".kmz" multiple disabled={subiendo}
+        onChange={(e) => onFiles(e.target.files)}
+        className="block w-full text-sm text-slate-600 file:mr-3 file:py-2 file:px-4 file:rounded-lg file:border-0 file:bg-[var(--brand)] file:text-white hover:file:opacity-90"
+      />
+      {subiendo && <p className="text-sm text-slate-500">Procesando KMZ…</p>}
+      {msg && <p className="text-sm text-emerald-700">{msg}</p>}
+
+      <div>
+        <h4 className="text-xs font-bold uppercase tracking-wide text-slate-500 mb-2">KMZ cargados ({grupos.length})</h4>
+        {grupos.length === 0 ? (
+          <p className="text-sm text-slate-400">Todavía no subiste ningún KMZ.</p>
+        ) : (
+          <ul className="divide-y divide-slate-100">
+            {grupos.map((g) => (
+              <li key={g.archivo} className="flex items-center justify-between py-2 text-sm">
+                <span className="text-slate-700">{g.archivo} <span className="text-slate-400">· {g.count} polígono(s)</span></span>
+                <button onClick={() => borrar(g.archivo)} className="text-red-600 hover:underline text-xs">Eliminar</button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// Mapa con TODOS los puntos de inspección (actas con coordenadas) + terrenos.
+function MapaActas({ actas, onSel, terrenos }: { actas: Acta[]; onSel: (a: Acta) => void; terrenos: Terreno[] }) {
   const el = useRef<HTMLDivElement>(null);
   const inst = useRef<any>(null);
   const [fallo, setFallo] = useState(false);
@@ -243,6 +333,14 @@ function MapaActas({ actas, onSel }: { actas: Acta[]; onSel: (a: Acta) => void }
         'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
         { maxZoom: 19, maxNativeZoom: 17, attribution: 'Imagery © Esri, Maxar, Earthstar Geographics' }
       ).addTo(map);
+      // Capa de terrenos (polígonos de los KMZ).
+      terrenos.forEach((t) => {
+        if (!t.geom?.coordinates) return;
+        const poly = L.polygon(t.geom.coordinates.map(ringToLatLng), {
+          color: '#ffd400', weight: 2, fillColor: '#ffd400', fillOpacity: 0.08,
+        }).addTo(map);
+        if (t.nombre) poly.bindTooltip(t.nombre, { sticky: true });
+      });
       const icon = L.divIcon({
         html: '<div style="font-size:24px;line-height:1;transform:translate(-2px,-10px)">📍</div>',
         className: '', iconSize: [24, 24], iconAnchor: [12, 24],
@@ -262,7 +360,7 @@ function MapaActas({ actas, onSel }: { actas: Acta[]; onSel: (a: Acta) => void }
       setTimeout(() => { try { map.invalidateSize(); } catch { /* noop */ } }, 150);
     }).catch(() => setFallo(true));
     return () => { cancelado = true; if (inst.current) { inst.current.remove(); inst.current = null; } };
-  }, [actas]);
+  }, [actas, terrenos]);
 
   if (fallo) {
     return <p className="text-sm text-slate-400 bg-white rounded-xl shadow-sm p-4">No se pudo cargar el mapa. Probá recargar la página.</p>;
@@ -278,13 +376,15 @@ function MapaActas({ actas, onSel }: { actas: Acta[]; onSel: (a: Acta) => void }
   );
 }
 
-// Ubicación geográfica donde se confirmó el acta + mapa satelital (~200 m, zoom 18).
-function UbicacionFirma({ lat, lng, acc, at }: { lat: number; lng: number; acc: number | null; at: string | null }) {
+// Ubicación geográfica donde se confirmó el acta + mapa satelital (~zoom 17),
+// con el polígono del terreno (KMZ) que contiene el punto, si existe.
+function UbicacionFirma({ lat, lng, acc, at, terrenos }: { lat: number; lng: number; acc: number | null; at: string | null; terrenos: Terreno[] }) {
   const mapEl = useRef<HTMLDivElement>(null);
   const mapInst = useRef<any>(null);
   const [falloMapa, setFalloMapa] = useState(false);
   const gmapsSat = `https://www.google.com/maps/@${lat},${lng},200m/data=!3m1!1e3`;
   const gmapsPin = `https://www.google.com/maps/search/?api=1&query=${lat},${lng}`;
+  const terreno = terrenoContaining(lat, lng, terrenos);
 
   useEffect(() => {
     let cancelado = false;
@@ -299,6 +399,13 @@ function UbicacionFirma({ lat, lng, acc, at }: { lat: number; lng: number; acc: 
         'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
         { maxZoom: 19, maxNativeZoom: 17, attribution: 'Imagery © Esri, Maxar, Earthstar Geographics' }
       ).addTo(map);
+      // Polígono del terreno que contiene el punto.
+      if (terreno?.geom?.coordinates) {
+        const poly = L.polygon(terreno.geom.coordinates.map(ringToLatLng), {
+          color: '#ffd400', weight: 2.5, fillColor: '#ffd400', fillOpacity: 0.12,
+        }).addTo(map);
+        try { map.fitBounds(poly.getBounds(), { padding: [20, 20], maxZoom: 18 }); } catch { /* noop */ }
+      }
       const icon = L.divIcon({
         html: '<div style="font-size:24px;line-height:1;transform:translate(-2px,-10px)">📍</div>',
         className: '', iconSize: [24, 24], iconAnchor: [12, 24],
@@ -309,7 +416,7 @@ function UbicacionFirma({ lat, lng, acc, at }: { lat: number; lng: number; acc: 
       setTimeout(() => { try { map.invalidateSize(); } catch { /* noop */ } }, 150);
     }).catch(() => setFalloMapa(true));
     return () => { cancelado = true; if (mapInst.current) { mapInst.current.remove(); mapInst.current = null; } };
-  }, [lat, lng]);
+  }, [lat, lng, terreno?.id]);
 
   return (
     <div>
@@ -317,6 +424,7 @@ function UbicacionFirma({ lat, lng, acc, at }: { lat: number; lng: number; acc: 
         <Dato k="Coordenadas" v={`${lat.toFixed(6)}, ${lng.toFixed(6)}`} />
         {acc != null && <Dato k="Precisión GPS" v={`± ${Math.round(acc)} m`} />}
         {at && <Dato k="Capturada" v={new Date(at).toLocaleString('es-AR')} />}
+        {terreno && <Dato k="Terreno" v={`${terreno.nombre || 'Sin nombre'}${terreno.archivo ? ` · ${terreno.archivo}` : ''}`} />}
       </div>
       {!falloMapa ? (
         <div
@@ -335,7 +443,7 @@ function UbicacionFirma({ lat, lng, acc, at }: { lat: number; lng: number; acc: 
   );
 }
 
-function DetalleActa({ a }: { a: Acta }) {
+function DetalleActa({ a, terrenos }: { a: Acta; terrenos: Terreno[] }) {
   const d = (a.datos ?? {}) as Record<string, any>;
   const marc = (pairs: [boolean, string][]) => pairs.filter(([c]) => !!c).map(([, l]) => l);
 
@@ -404,7 +512,7 @@ function DetalleActa({ a }: { a: Acta }) {
 
       <Seccion titulo="Ubicación de la firma">
         {a.lat != null && a.lng != null ? (
-          <UbicacionFirma lat={a.lat} lng={a.lng} acc={a.geo_precision} at={a.geo_at} />
+          <UbicacionFirma lat={a.lat} lng={a.lng} acc={a.geo_precision} at={a.geo_at} terrenos={terrenos} />
         ) : (
           <p className="text-sm text-slate-400">
             No se registró ubicación en esta acta. Se captura automáticamente al confirmar el acta desde el celular,
