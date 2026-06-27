@@ -2040,10 +2040,28 @@ async function cancelarCierre() {
   if (window._coDesigId) { try { await supa.rpc('cancelar_cierre_acta', { p_id: window._coDesigId }); } catch (e) {} }
 }
 
+// Ubicación donde se confirma el acta (GPS del celular). Nunca bloquea el
+// guardado: si el inspector niega el permiso o tarda, sigue sin ubicación.
+function getGeo() {
+  return new Promise(function (resolve) {
+    if (!navigator.geolocation) { resolve(null); return; }
+    var done = false;
+    var t = setTimeout(function () { if (!done) { done = true; resolve(null); } }, 9000);
+    navigator.geolocation.getCurrentPosition(
+      function (pos) { if (done) return; done = true; clearTimeout(t);
+        resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude, acc: pos.coords.accuracy || null }); },
+      function () { if (done) return; done = true; clearTimeout(t); resolve(null); },
+      { enableHighAccuracy: true, timeout: 8000, maximumAge: 0 }
+    );
+  });
+}
+
 async function doSaveActa() {
   document.getElementById('loadingOverlay').classList.add('show');
-  document.getElementById('loadingText').textContent = ONLINE ? 'Guardando en la base de datos…' : 'Guardando…';
+  document.getElementById('loadingText').textContent = 'Obteniendo ubicación…';
   try {
+    const geo = editingId ? null : await getGeo();
+    document.getElementById('loadingText').textContent = ONLINE ? 'Guardando en la base de datos…' : 'Guardando…';
     const d = collectFormData();
     d.agente1Id = (window.CURRENT_USER && CURRENT_USER.id) || null;
     d.agente2Id = (window.AGENT2 && AGENT2.id) || null;
@@ -2067,6 +2085,12 @@ async function doSaveActa() {
     if (ONLINE && CURRENT_USER) {
       record.inspector_id = CURRENT_USER.id;
       record.inspector_nombre = CURRENT_USER.nombre || CURRENT_USER.email || null;
+    }
+    // Ubicación de confirmación del acta (si el GPS estuvo disponible)
+    if (geo) {
+      record.lat = geo.lat; record.lng = geo.lng;
+      record.geo_precision = geo.acc; record.geo_at = new Date().toISOString();
+      d.geoLat = geo.lat; d.geoLng = geo.lng; d.geoAcc = geo.acc;
     }
     // Si estamos editando un acta existente, conservar su id y fecha de creación
     if (editingId) {

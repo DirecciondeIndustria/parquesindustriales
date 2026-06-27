@@ -23,6 +23,10 @@ interface Acta {
   sig2: string | null;
   sig3: string | null;
   inspector_nombre: string | null;
+  lat: number | null;
+  lng: number | null;
+  geo_precision: number | null;
+  geo_at: string | null;
   created_at: string;
 }
 
@@ -103,7 +107,12 @@ export default function Actas() {
                 <td className="px-4 py-3 font-semibold text-[var(--brand)]">{nro(a)}</td>
                 <td className="px-4 py-3 text-slate-700">{txt(a.razon_social)}</td>
                 <td className="px-4 py-3 text-slate-600">{txt(a.parque)}</td>
-                <td className="px-4 py-3 text-slate-600">{txt(a.ciudad)}</td>
+                <td className="px-4 py-3 text-slate-600">
+                  {txt(a.ciudad)}
+                  {a.lat != null && a.lng != null && (
+                    <span title="Acta con ubicación geográfica" className="ml-1">📍</span>
+                  )}
+                </td>
                 <td className="px-4 py-3 text-slate-600">{fmtFecha(a.fecha)}</td>
                 <td className="px-4 py-3 text-slate-600">{txt(a.inspector_nombre)}</td>
                 <td className="px-4 py-3 text-slate-600">{a.fotos?.length ?? 0}</td>
@@ -159,6 +168,53 @@ function Chips({ items }: { items: string[] }) {
           {t}
         </span>
       ))}
+    </div>
+  );
+}
+
+// Ubicación geográfica donde se confirmó el acta + imagen satelital (~200 m).
+function UbicacionFirma({ lat, lng, acc, at }: { lat: number; lng: number; acc: number | null; at: string | null }) {
+  // Extensión de ~220 m de lado (equivale a una vista satelital a ~200 m de altura).
+  const lado = 220;
+  const dLat = (lado / 2) / 111320;
+  const dLng = (lado / 2) / (111320 * Math.cos((lat * Math.PI) / 180));
+  const bbox = `${lng - dLng},${lat - dLat},${lng + dLng},${lat + dLat}`;
+  const sat = `https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/export?bbox=${bbox}&bboxSR=4326&imageSR=3857&size=640,640&format=jpg&f=image`;
+  const gmapsSat = `https://www.google.com/maps/@${lat},${lng},200m/data=!3m1!1e3`;
+  const gmapsPin = `https://www.google.com/maps/search/?api=1&query=${lat},${lng}`;
+
+  return (
+    <div>
+      <div className="flex flex-wrap gap-x-6 gap-y-0.5 mb-2">
+        <Dato k="Coordenadas" v={`${lat.toFixed(6)}, ${lng.toFixed(6)}`} />
+        {acc != null && <Dato k="Precisión GPS" v={`± ${Math.round(acc)} m`} />}
+        {at && <Dato k="Capturada" v={new Date(at).toLocaleString('es-AR')} />}
+      </div>
+      <a
+        href={gmapsSat}
+        target="_blank"
+        rel="noreferrer"
+        className="relative block max-w-md rounded-lg overflow-hidden ring-1 ring-slate-200"
+        title="Abrir en Google Maps (satélite)"
+      >
+        <img
+          src={sat}
+          alt="Imagen satelital del lugar donde se firmó el acta"
+          className="block w-full h-auto"
+          loading="lazy"
+        />
+        {/* El punto de firma es el centro exacto de la imagen */}
+        <span className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 text-2xl drop-shadow-[0_1px_2px_rgba(0,0,0,0.9)] pointer-events-none">
+          📍
+        </span>
+        <span className="absolute bottom-1 right-1 text-[10px] bg-black/50 text-white px-1.5 py-0.5 rounded">
+          Imagery © Esri, Maxar
+        </span>
+      </a>
+      <div className="flex flex-wrap gap-4 mt-2 text-xs">
+        <a href={gmapsSat} target="_blank" rel="noreferrer" className="text-[var(--brand)] hover:underline">Ver en Google Maps (satélite)</a>
+        <a href={gmapsPin} target="_blank" rel="noreferrer" className="text-[var(--brand)] hover:underline">Abrir punto exacto</a>
+      </div>
     </div>
   );
 }
@@ -229,6 +285,12 @@ function DetalleActa({ a }: { a: Acta }) {
         <Dato k="Parque industrial" v={a.parque} />
         <Dato k="Nomenclatura" v={`Ejido ${d.ejido || '—'} · Circ ${d.circ || '—'} · Sec ${d.sector || '—'} · Div ${d.division || '—'} · Parc ${d.parcela || '—'}${d.macizo ? ' · Mac ' + d.macizo : ''}`} />
       </Seccion>
+
+      {a.lat != null && a.lng != null && (
+        <Seccion titulo="Ubicación de la firma">
+          <UbicacionFirma lat={a.lat} lng={a.lng} acc={a.geo_precision} at={a.geo_at} />
+        </Seccion>
+      )}
 
       <Seccion titulo="Acceso al predio">
         <Chips items={acceso} />
