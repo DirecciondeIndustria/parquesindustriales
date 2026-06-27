@@ -42,13 +42,20 @@ function parseCoords(s: string): number[][] {
     .filter((p) => Number.isFinite(p[0]) && Number.isFinite(p[1]));
 }
 
-// Extrae los polígonos (anillo exterior) de un KMZ. Devuelve nombre + geom.
+// Extrae los polígonos (anillo exterior) de un KMZ o KML. Devuelve nombre + geom.
 export async function parseKmz(file: File): Promise<{ nombre: string; geom: Terreno['geom'] }[]> {
-  const JSZip = await loadJSZip();
-  const zip = await JSZip.loadAsync(file);
-  const kmlName = Object.keys(zip.files).find((n: string) => n.toLowerCase().endsWith('.kml'));
-  if (!kmlName) return [];
-  const kmlText: string = await zip.files[kmlName].async('text');
+  let kmlText: string;
+  if (file.name.toLowerCase().endsWith('.kml')) {
+    // KML: XML sin comprimir, se lee directo.
+    kmlText = await file.text();
+  } else {
+    // KMZ: ZIP que contiene un .kml adentro.
+    const JSZip = await loadJSZip();
+    const zip = await JSZip.loadAsync(file);
+    const kmlName = Object.keys(zip.files).find((n: string) => n.toLowerCase().endsWith('.kml'));
+    if (!kmlName) return [];
+    kmlText = await zip.files[kmlName].async('text');
+  }
   const xml = new DOMParser().parseFromString(kmlText, 'application/xml');
 
   const out: { nombre: string; geom: Terreno['geom'] }[] = [];

@@ -285,12 +285,12 @@ function TerrenosManager({ terrenos }: { terrenos: Terreno[] }) {
   return (
     <div className="space-y-4">
       <p className="text-sm text-slate-500">
-        Subí archivos <strong>KMZ</strong> de Google Earth con los polígonos de los terrenos. Cuando un acta
+        Subí archivos <strong>KMZ o KML</strong> de Google Earth con los polígonos de los terrenos. Cuando un acta
         tenga coordenadas dentro de un polígono, ese terreno se dibuja sobre la imagen satelital (en el acta y
-        en el mapa general). Un mismo KMZ puede tener varios polígonos.
+        en el mapa general). Un mismo archivo puede tener varios polígonos.
       </p>
       <input
-        type="file" accept=".kmz" multiple disabled={subiendo}
+        type="file" accept=".kmz,.kml" multiple disabled={subiendo}
         onChange={(e) => onFiles(e.target.files)}
         className="block w-full text-sm text-slate-600 file:mr-3 file:py-2 file:px-4 file:rounded-lg file:border-0 file:bg-[var(--brand)] file:text-white hover:file:opacity-90"
       />
