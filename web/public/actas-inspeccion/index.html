@@ -2057,6 +2057,53 @@ function getGeo() {
   });
 }
 
+// Arma una imagen satelital estática (dataURL) desde los tiles de Esri World
+// Imagery para incrustar en el PDF (jsPDF no acepta mapas). Tiles con CORS.
+function _loadTile(url) {
+  return new Promise(function (resolve) {
+    var img = new Image(); img.crossOrigin = 'anonymous';
+    var t = setTimeout(function () { resolve(null); }, 9000);
+    img.onload = function () { clearTimeout(t); resolve(img); };
+    img.onerror = function () { clearTimeout(t); resolve(null); };
+    img.src = url;
+  });
+}
+async function getSatImageDataUrl(lat, lng) {
+  try {
+    var zoom = 17, grid = 3, TILE = 256, out = 540, half = (grid - 1) / 2;
+    var n = Math.pow(2, zoom);
+    var xf = ((lng + 180) / 360) * n;
+    var latRad = lat * Math.PI / 180;
+    var yf = ((1 - Math.asinh(Math.tan(latRad)) / Math.PI) / 2) * n;
+    var xt = Math.floor(xf), yt = Math.floor(yf);
+    var big = document.createElement('canvas'); big.width = grid * TILE; big.height = grid * TILE;
+    var ctx = big.getContext('2d'); if (!ctx) return null;
+    var base = 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile';
+    var tasks = [];
+    for (var dx = -half; dx <= half; dx++) {
+      for (var dy = -half; dy <= half; dy++) {
+        (function (dx, dy) {
+          tasks.push(_loadTile(base + '/' + zoom + '/' + (yt + dy) + '/' + (xt + dx)).then(function (im) {
+            if (im) ctx.drawImage(im, (dx + half) * TILE, (dy + half) * TILE);
+          }));
+        })(dx, dy);
+      }
+    }
+    await Promise.all(tasks);
+    var pxC = (xf - (xt - half)) * TILE, pyC = (yf - (yt - half)) * TILE;
+    var sx = Math.max(0, Math.min(big.width - out, pxC - out / 2));
+    var sy = Math.max(0, Math.min(big.height - out, pyC - out / 2));
+    var crop = document.createElement('canvas'); crop.width = out; crop.height = out;
+    var c = crop.getContext('2d'); if (!c) return null;
+    c.drawImage(big, sx, sy, out, out, 0, 0, out, out);
+    var mx = pxC - sx, my = pyC - sy;
+    c.lineWidth = 3; c.strokeStyle = '#ffffff'; c.fillStyle = '#e11d2a';
+    c.beginPath(); c.arc(mx, my, 9, 0, Math.PI * 2); c.fill(); c.stroke();
+    c.fillStyle = '#ffffff'; c.beginPath(); c.arc(mx, my, 3, 0, Math.PI * 2); c.fill();
+    return crop.toDataURL('image/jpeg', 0.85);
+  } catch (e) { return null; }
+}
+
 async function doSaveActa() {
   document.getElementById('loadingOverlay').classList.add('show');
   document.getElementById('loadingText').textContent = 'Obteniendo ubicación…';
@@ -2092,6 +2139,7 @@ async function doSaveActa() {
       record.lat = geo.lat; record.lng = geo.lng;
       record.geo_precision = geo.acc; record.geo_at = new Date().toISOString();
       d.geoLat = geo.lat; d.geoLng = geo.lng; d.geoAcc = geo.acc;
+      window._lastGeo = geo;
     }
     // Si estamos editando un acta existente, conservar su id y fecha de creación
     if (editingId) {
@@ -2321,6 +2369,7 @@ async function generatePDF() {
   const d = collectFormData();
   d.photos = photos;
   d.sig1 = getSigDataURL(1); d.sig2 = getSigDataURL(2); d.sig3 = getSigDataURL(3);
+  if (window._lastGeo) { d.geoLat = window._lastGeo.lat; d.geoLng = window._lastGeo.lng; d.geoAcc = window._lastGeo.acc; }
   await renderPDF(d);
 }
 
@@ -2536,6 +2585,23 @@ async function renderPDF(d, returnBase64) {
     checkY(boxH + 14);
     sigBox(ML + boxW / 2 + 6, d.sig3, respFull, `${d.respCargo || 'Responsable'}${d.razonSocial ? ' – ' + d.razonSocial : ''}`);
     y += boxH + 12;
+
+    // Ubicación de la firma (coordenadas + imagen satelital ~zoom 17)
+    if (d.geoLat != null && d.geoLng != null) {
+      sectionTitle('Ubicación de la firma');
+      writeLabel('Coordenadas:', Number(d.geoLat).toFixed(6) + ', ' + Number(d.geoLng).toFixed(6));
+      if (d.geoAcc != null) writeLabel('Precisión GPS:', '± ' + Math.round(Number(d.geoAcc)) + ' m');
+      var satImg = d.geoImg || await getSatImageDataUrl(d.geoLat, d.geoLng);
+      if (satImg) {
+        var imgW = 90, imgH = 90; gap(1); checkY(imgH + 6);
+        var gix = ML + (TW - imgW) / 2;
+        try { doc.addImage(satImg, 'JPEG', gix, y, imgW, imgH); doc.setDrawColor(...C_LIGHT); doc.setLineWidth(0.3); doc.rect(gix, y, imgW, imgH); } catch (e) {}
+        y += imgH + 3;
+        setFont('italic', 6.5, C_GRAY);
+        doc.text('Imagery © Esri, Maxar, Earthstar Geographics', gix + imgW, y, { align: 'right' });
+        y += 4;
+      }
+    }
 
     // Fotos
     if (d.photos && d.photos.length) {
