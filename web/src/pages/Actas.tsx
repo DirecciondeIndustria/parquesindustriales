@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
 import { Modal, Boton, inputCls, EncabezadoPagina, Skeleton } from '../components/ui';
@@ -172,16 +172,59 @@ function Chips({ items }: { items: string[] }) {
   );
 }
 
-// Ubicación geográfica donde se confirmó el acta + imagen satelital (~200 m).
+// Carga Leaflet desde CDN una sola vez (sin sumar dependencia al build).
+let leafletPromise: Promise<any> | null = null;
+function loadLeaflet(): Promise<any> {
+  const w = window as any;
+  if (w.L) return Promise.resolve(w.L);
+  if (leafletPromise) return leafletPromise;
+  leafletPromise = new Promise((resolve, reject) => {
+    if (!document.getElementById('leaflet-css')) {
+      const link = document.createElement('link');
+      link.id = 'leaflet-css';
+      link.rel = 'stylesheet';
+      link.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
+      document.head.appendChild(link);
+    }
+    const s = document.createElement('script');
+    s.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
+    s.async = true;
+    s.onload = () => resolve((window as any).L);
+    s.onerror = reject;
+    document.head.appendChild(s);
+  });
+  return leafletPromise;
+}
+
+// Ubicación geográfica donde se confirmó el acta + mapa satelital (~200 m, zoom 18).
 function UbicacionFirma({ lat, lng, acc, at }: { lat: number; lng: number; acc: number | null; at: string | null }) {
-  // Extensión de ~220 m de lado (equivale a una vista satelital a ~200 m de altura).
-  const lado = 220;
-  const dLat = (lado / 2) / 111320;
-  const dLng = (lado / 2) / (111320 * Math.cos((lat * Math.PI) / 180));
-  const bbox = `${lng - dLng},${lat - dLat},${lng + dLng},${lat + dLat}`;
-  const sat = `https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/export?bbox=${bbox}&bboxSR=4326&imageSR=3857&size=640,640&format=jpg&f=image`;
+  const mapEl = useRef<HTMLDivElement>(null);
+  const mapInst = useRef<any>(null);
+  const [falloMapa, setFalloMapa] = useState(false);
   const gmapsSat = `https://www.google.com/maps/@${lat},${lng},200m/data=!3m1!1e3`;
   const gmapsPin = `https://www.google.com/maps/search/?api=1&query=${lat},${lng}`;
+
+  useEffect(() => {
+    let cancelado = false;
+    loadLeaflet().then((L) => {
+      if (cancelado || !mapEl.current) return;
+      if (mapInst.current) { mapInst.current.remove(); mapInst.current = null; }
+      const map = L.map(mapEl.current, { scrollWheelZoom: false }).setView([lat, lng], 18);
+      L.tileLayer(
+        'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+        { maxZoom: 19, attribution: 'Imagery © Esri, Maxar, Earthstar Geographics' }
+      ).addTo(map);
+      const icon = L.divIcon({
+        html: '<div style="font-size:24px;line-height:1;transform:translate(-2px,-10px)">📍</div>',
+        className: '', iconSize: [24, 24], iconAnchor: [12, 24],
+      });
+      L.marker([lat, lng], { icon }).addTo(map);
+      mapInst.current = map;
+      // El modal puede recién mostrarse: recalcular tamaño tras montar.
+      setTimeout(() => { try { map.invalidateSize(); } catch { /* noop */ } }, 150);
+    }).catch(() => setFalloMapa(true));
+    return () => { cancelado = true; if (mapInst.current) { mapInst.current.remove(); mapInst.current = null; } };
+  }, [lat, lng]);
 
   return (
     <div>
@@ -190,27 +233,15 @@ function UbicacionFirma({ lat, lng, acc, at }: { lat: number; lng: number; acc: 
         {acc != null && <Dato k="Precisión GPS" v={`± ${Math.round(acc)} m`} />}
         {at && <Dato k="Capturada" v={new Date(at).toLocaleString('es-AR')} />}
       </div>
-      <a
-        href={gmapsSat}
-        target="_blank"
-        rel="noreferrer"
-        className="relative block max-w-md rounded-lg overflow-hidden ring-1 ring-slate-200"
-        title="Abrir en Google Maps (satélite)"
-      >
-        <img
-          src={sat}
-          alt="Imagen satelital del lugar donde se firmó el acta"
-          className="block w-full h-auto"
-          loading="lazy"
+      {!falloMapa ? (
+        <div
+          ref={mapEl}
+          className="max-w-md h-72 rounded-lg overflow-hidden ring-1 ring-slate-200 bg-slate-100"
+          style={{ zIndex: 0 }}
         />
-        {/* El punto de firma es el centro exacto de la imagen */}
-        <span className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 text-2xl drop-shadow-[0_1px_2px_rgba(0,0,0,0.9)] pointer-events-none">
-          📍
-        </span>
-        <span className="absolute bottom-1 right-1 text-[10px] bg-black/50 text-white px-1.5 py-0.5 rounded">
-          Imagery © Esri, Maxar
-        </span>
-      </a>
+      ) : (
+        <p className="text-xs text-slate-400">No se pudo cargar el mapa satelital. Usá los enlaces de abajo.</p>
+      )}
       <div className="flex flex-wrap gap-4 mt-2 text-xs">
         <a href={gmapsSat} target="_blank" rel="noreferrer" className="text-[var(--brand)] hover:underline">Ver en Google Maps (satélite)</a>
         <a href={gmapsPin} target="_blank" rel="noreferrer" className="text-[var(--brand)] hover:underline">Abrir punto exacto</a>
