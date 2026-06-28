@@ -6,7 +6,8 @@ import com.getcapacitor.BridgeActivity;
 public class MainActivity extends BridgeActivity {
     @Override
     public void onCreate(Bundle savedInstanceState) {
-        registerPlugin(MockLocationPlugin.class); // plugin detección fake GPS
+        registerPlugin(MockLocationPlugin.class);   // detección fake GPS
+        registerPlugin(RootDetectionPlugin.class); // detección root/jailbreak
         super.onCreate(savedInstanceState);
     }
 }

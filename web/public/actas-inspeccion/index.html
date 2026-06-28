@@ -1506,25 +1506,25 @@ async function dbList() {
   if (ONLINE) {
     const { data, error } = await supa.from(TABLA)
       .select('*').order('created_at', { ascending: false });
-    if (error) { console.error(error); toast('Error al cargar historial'); return localList(); }
+    if (error) { console.error(error); toast('Error al cargar historial'); return await localList(); }
     return data || [];
   }
-  return localList();
+  return await localList();
 }
 
-function localList() {
-  try { return JSON.parse(localStorage.getItem('inspecciones_list') || '[]'); }
+async function localList() {
+  try { return JSON.parse((await SecStore.get('inspecciones_list')) || '[]'); }
   catch (e) { return []; }
 }
 
 // Número inicial configurado (correlatividad con actas previas hechas a mano)
-function getStartNumber(anio) {
-  const v = parseInt(localStorage.getItem('numeroInicial_' + anio) || '0', 10);
+async function getStartNumber(anio) {
+  const v = parseInt((await SecStore.get('numeroInicial_' + anio)) || '0', 10);
   return isNaN(v) ? 0 : v;
 }
-function setStartNumber(anio, n) {
-  if (n && n > 0) localStorage.setItem('numeroInicial_' + anio, String(n));
-  else localStorage.removeItem('numeroInicial_' + anio);
+async function setStartNumber(anio, n) {
+  if (n && n > 0) await SecStore.set('numeroInicial_' + anio, String(n));
+  else await SecStore.remove('numeroInicial_' + anio);
 }
 
 async function dbNextNumero(anio) {
@@ -1535,11 +1535,11 @@ async function dbNextNumero(anio) {
     if (error) { console.error(error); }
     next = ((data && data[0]) ? data[0].numero : 0) + 1;
   } else {
-    const list = localList().filter(r => r.anio === anio);
+    const list = (await localList()).filter(r => r.anio === anio);
     next = list.reduce((m, r) => Math.max(m, r.numero || 0), 0) + 1;
   }
   // Respetar el número inicial elegido en Configuración
-  return Math.max(next, getStartNumber(anio) || 1);
+  return Math.max(next, (await getStartNumber(anio)) || 1);
 }
 
 async function dbSave(record) {
@@ -1555,7 +1555,7 @@ async function dbSave(record) {
     }
   }
   // Local
-  const list = localList();
+  const list = await localList();
   if (record.id) {
     const i = list.findIndex(r => r.id === record.id);
     if (i >= 0) list[i] = record; else list.unshift(record);
@@ -1564,7 +1564,7 @@ async function dbSave(record) {
     record.created_at = new Date().toISOString();
     list.unshift(record);
   }
-  localStorage.setItem('inspecciones_list', JSON.stringify(list));
+  await SecStore.set('inspecciones_list', JSON.stringify(list));
   return record.id;
 }
 
@@ -1574,14 +1574,26 @@ async function dbDelete(id) {
     if (error) throw error;
     return;
   }
-  const list = localList().filter(r => String(r.id) !== String(id));
-  localStorage.setItem('inspecciones_list', JSON.stringify(list));
+  const list = (await localList()).filter(r => String(r.id) !== String(id));
+  await SecStore.set('inspecciones_list', JSON.stringify(list));
 }
 
 // ── AUTENTICACIÓN (inspectores del SIGPIP) ───────────────────────
 // La app comparte el Supabase del SIGPIP. Los inspectores inician sesión
 // con el mismo usuario/clave que tienen en el SIGPIP (rol 'inspector').
 async function ensureAuth() {
+  // Bloquear si el dispositivo está rooteado (solo en app nativa)
+  if (window.Capacitor) {
+    const rooted = await checkRootedDevice();
+    if (rooted) {
+      document.body.innerHTML = '<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;padding:32px;text-align:center;font-family:Arial,sans-serif;background:#fff8f0">' +
+        '<div style="font-size:48px;margin-bottom:16px">⚠️</div>' +
+        '<h2 style="color:#b45309;margin:0 0 12px">Dispositivo no permitido</h2>' +
+        '<p style="color:#44403c;max-width:320px">Este dispositivo tiene acceso root activo. Por razones de seguridad, la aplicación no puede ejecutarse en dispositivos modificados.</p>' +
+        '<p style="color:#78716c;font-size:.85rem;margin-top:12px">Contactá al administrador del sistema.</p></div>';
+      return false;
+    }
+  }
   const cfg = window.APP_CONFIG || {};
   if (!ONLINE || !cfg.REQUIERE_LOGIN) return true; // modo local: sin login
   try {
@@ -1738,7 +1750,7 @@ function goHome() {
 // ── CONFIGURACIÓN (numeración) ───────────────────────────────────
 async function openSettings() {
   const year = new Date().getFullYear();
-  const cur = getStartNumber(year);
+  const cur = await getStartNumber(year);
   document.getElementById('numeroInicial').value = cur > 0 ? cur : '';
   const next = await dbNextNumero(year);
   document.getElementById('nextNumText').innerHTML =
@@ -1756,7 +1768,7 @@ function closeSettings(ev) {
 async function saveSettings() {
   const year = new Date().getFullYear();
   const n = parseInt(document.getElementById('numeroInicial').value, 10);
-  setStartNumber(year, isNaN(n) ? 0 : n);
+  await setStartNumber(year, isNaN(n) ? 0 : n);
   closeSettings();
   toast(n > 0 ? `Numeración configurada desde N° ${n}` : 'Numeración inicial restablecida');
 }
@@ -1772,8 +1784,8 @@ async function refreshDashboard() {
     const d = new Date(r.created_at || r.fecha); return d.getFullYear() === yr && d.getMonth() === mo;
   }).length;
   renderList();
-  buildDatalists();
-  checkDraftBanner();
+  await buildDatalists();
+  await checkDraftBanner();
 }
 
 function renderList() {
@@ -1809,7 +1821,7 @@ function renderList() {
     else if (d.accesoInterior || d.accesoPredi) chips.push('<span class="chip">✓ Con acceso</span>');
     if (nF) chips.push(`<span class="chip">📷 ${nF}</span>`);
     const estado = r.estado === 'borrador' ? '<span class="acta-status st-borrador">Borrador</span>' : '';
-    return `<div class="acta-card" onclick="openDetail('${r.id}')">
+    return `<div class="acta-card" onclick="openDetail('${encodeURIComponent(String(r.id || ''))}')">
       ${estado}
       <div class="acta-num"><span class="n">${num}</span><span class="y">${r.anio || ''}</span></div>
       <div class="acta-info">
@@ -1827,7 +1839,8 @@ function renderList() {
 let lbPhotos = [], lbIndex = 0;
 
 function openDetail(id) {
-  const r = cachedList.find(x => String(x.id) === String(id));
+  const safeId = decodeURIComponent(String(id || ''));
+  const r = cachedList.find(x => String(x.id) === safeId);
   if (!r) return;
   const num = String(r.numero || 0).padStart(3, '0');
   const d = r.datos || {};
@@ -1853,7 +1866,7 @@ function openDetail(id) {
 
   lbPhotos = fotos;
   const gallery = fotos.length ? `<div class="detail-section"><h3>📷 Registro fotográfico (${fotos.length})</h3>
-    <div class="detail-photos">${fotos.map((src, i) => `<img src="${src}" onclick="openLightbox(${i})" alt="Foto ${i + 1}">`).join('')}</div></div>` : '';
+    <div class="detail-photos">${fotos.map((src, i) => { const u = escUrl(src); return u ? `<img src="${u}" onclick="openLightbox(${i})" alt="Foto ${i + 1}">` : ''; }).join('')}</div></div>` : '';
 
   document.getElementById('screenDetail').innerHTML = `
     <div class="detail-head">
@@ -1939,11 +1952,11 @@ function duplicateAsNew(id) {
 // ── START NEW INSPECTION ─────────────────────────────────────────
 async function startNewInspeccion(prefill) {
   // Si hay un borrador sin terminar, ofrecer continuarlo antes de pisarlo
-  if (!prefill && getDraft()) {
+  if (!prefill && await getDraft()) {
     if (confirm('Tenés una inspección sin terminar guardada como borrador.\n\nAceptar = continuar ese borrador.\nCancelar = empezar una nueva (se descarta el borrador).')) {
-      resumeDraft(); return;
+      await resumeDraft(); return;
     }
-    clearDraft();
+    await clearDraft();
   }
   resetWizardState();
   editingId = null;
@@ -2087,6 +2100,16 @@ async function savePDF(doc, filename) {
   }
 }
 
+// Detecta dispositivo rooteado — bloquea el uso de la app si está comprometido.
+async function checkRootedDevice() {
+  try {
+    const RootDetection = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.RootDetection;
+    if (!RootDetection) return false;
+    const r = await RootDetection.check();
+    return r && r.isRooted === true;
+  } catch (e) { return false; }
+}
+
 // Detecta GPS simulado (solo en la app nativa Android). Devuelve el objeto
 // completo del plugin para poder diagnosticar qué señal disparó la detección.
 async function checkFakeGPS() {
@@ -2104,6 +2127,39 @@ async function checkFakeGPS() {
 
 // Bandera para activar diagnóstico de GPS (se enciende tocando 5 veces el título).
 window.GPS_DEBUG = false;
+
+// ── Almacenamiento seguro ─────────────────────────────────────────
+// En la app nativa usa @capacitor/preferences (cifrado por el SO).
+// En browser usa localStorage como fallback.
+const SecStore = {
+  async get(key) {
+    try {
+      if (window.Capacitor && window.Capacitor.Plugins.Preferences) {
+        const r = await window.Capacitor.Plugins.Preferences.get({ key });
+        return r && r.value != null ? r.value : null;
+      }
+    } catch (e) { /* fallback */ }
+    return localStorage.getItem(key);
+  },
+  async set(key, value) {
+    try {
+      if (window.Capacitor && window.Capacitor.Plugins.Preferences) {
+        await window.Capacitor.Plugins.Preferences.set({ key, value: String(value) });
+        return;
+      }
+    } catch (e) { /* fallback */ }
+    localStorage.setItem(key, value);
+  },
+  async remove(key) {
+    try {
+      if (window.Capacitor && window.Capacitor.Plugins.Preferences) {
+        await window.Capacitor.Plugins.Preferences.remove({ key });
+        return;
+      }
+    } catch (e) { /* fallback */ }
+    localStorage.removeItem(key);
+  }
+};
 window._gpsTaps = 0;
 window._gpsTapTimer = null;
 function _gpsDebugTap() {
@@ -2283,7 +2339,7 @@ async function doSaveActa() {
       if (prev && prev.created_at) record.created_at = prev.created_at;
     }
     editingId = await dbSave(record);
-    clearDraft();
+    await clearDraft();
     document.querySelectorAll('.step').forEach(s => s.classList.remove('active'));
     document.getElementById('navBar').style.display = 'none';
     document.getElementById('progressFill').style.width = '100%';
@@ -2773,7 +2829,17 @@ function formatLongDate(s) {
 function formatShortDate(s) {
   if (!s) return ''; const [y, m, dd] = s.split('-'); if (!y) return s; return `${dd}/${m}/${y}`;
 }
-function esc(s) { return (s == null ? '' : String(s)).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])); }
+function esc(s) { return (s == null ? '' : String(s)).replace(/[&<>"'`]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#x27;', '`': '&#x60;' }[c])); }
+// Escapa un valor para usarlo dentro de onclick="fn('VAL')" — escapa comillas simples
+function escAttr(s) { return (s == null ? '' : String(s)).replace(/[&<>"'`]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#x27;', '`': '&#x60;' }[c])); }
+// Valida que una URL sea segura (solo http/https/data:image)
+function escUrl(u) {
+  if (!u) return '';
+  const s = String(u).trim();
+  if (/^data:image\/(png|jpeg|webp|gif|svg\+xml);base64,/i.test(s)) return s;
+  if (/^https?:\/\//i.test(s)) return s;
+  return ''; // bloquea javascript:, vbscript:, etc.
+}
 function toast(msg) {
   const t = document.getElementById('toast'); t.textContent = msg; t.classList.add('show');
   clearTimeout(window._toastT); window._toastT = setTimeout(() => t.classList.remove('show'), 2600);
@@ -2814,7 +2880,7 @@ function scheduleDraftSave() {
   _draftTimer = setTimeout(saveDraft, 700);
 }
 
-function saveDraft() {
+async function saveDraft() {
   if (editingId !== null || !hasWizardData()) return;
   try {
     const draft = {
@@ -2824,19 +2890,19 @@ function saveDraft() {
       step: currentStep,
       ts: Date.now()
     };
-    localStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
+    await SecStore.set(DRAFT_KEY, JSON.stringify(draft));
   } catch (e) { /* cuota llena: ignorar */ }
 }
 
-function clearDraft() { localStorage.removeItem(DRAFT_KEY); _draftTimer && clearTimeout(_draftTimer); checkDraftBanner(); }
+async function clearDraft() { await SecStore.remove(DRAFT_KEY); _draftTimer && clearTimeout(_draftTimer); checkDraftBanner(); }
 
-function getDraft() {
-  try { return JSON.parse(localStorage.getItem(DRAFT_KEY) || 'null'); } catch (e) { return null; }
+async function getDraft() {
+  try { return JSON.parse((await SecStore.get(DRAFT_KEY)) || 'null'); } catch (e) { return null; }
 }
 
-function checkDraftBanner() {
+async function checkDraftBanner() {
   const banner = document.getElementById('draftBanner');
-  const draft = getDraft();
+  const draft = await getDraft();
   if (!draft) { banner.style.display = 'none'; return; }
   const d = draft.datos || {};
   const titulo = d.razonSocial || d.establecimiento || 'Inspección sin terminar';
@@ -2847,8 +2913,8 @@ function checkDraftBanner() {
   banner.style.display = 'flex';
 }
 
-function resumeDraft() {
-  const draft = getDraft();
+async function resumeDraft() {
+  const draft = await getDraft();
   if (!draft) return;
   resetWizardState();
   editingId = null;
@@ -2862,9 +2928,9 @@ function resumeDraft() {
   toast('Borrador recuperado');
 }
 
-function discardDraft() {
+async function discardDraft() {
   if (!confirm('¿Descartar el borrador guardado?')) return;
-  clearDraft();
+  await clearDraft();
   cerrarActaActiva();
   toast('Borrador descartado');
 }
@@ -2916,10 +2982,10 @@ async function importBackup(files) {
     if (ONLINE) {
       for (const r of arr) { const rec = Object.assign({}, r); delete rec.id; await dbSave(rec); }
     } else {
-      const cur = localList();
+      const cur = await localList();
       const byKey = new Map(cur.map(r => [r.numero + '-' + r.anio, r]));
       arr.forEach(r => { byKey.set((r.numero) + '-' + (r.anio), r); });
-      localStorage.setItem('inspecciones_list', JSON.stringify([...byKey.values()]));
+      await SecStore.set('inspecciones_list', JSON.stringify([...byKey.values()]));
     }
     await refreshDashboard();
     toast(`Restauradas ${arr.length} inspecciones`);
@@ -2970,8 +3036,8 @@ function setupMasks() {
 }
 
 // Sugerencias (datalist) a partir del historial: agentes, parques, ciudades
-function buildDatalists() {
-  const agentes = new Set(getInspectores());
+async function buildDatalists() {
+  const agentes = new Set(await getInspectores());
   cachedList.forEach(r => { (r.datos?.agents || []).forEach(a => a && agentes.add(a)); });
   let dl = document.getElementById('dl-agentes');
   if (!dl) { dl = document.createElement('datalist'); dl.id = 'dl-agentes'; document.body.appendChild(dl); }
@@ -3007,25 +3073,25 @@ function onCiudadChange() { updateParquesOptions(); }
 // ════════════════════════════════════════════════════════════════
 //  REGISTRO DE INSPECTORES (para autocompletar)
 // ════════════════════════════════════════════════════════════════
-function getInspectores() { try { return JSON.parse(localStorage.getItem('inspectores_reg') || '[]'); } catch (e) { return []; } }
-function setInspectores(arr) { localStorage.setItem('inspectores_reg', JSON.stringify(arr)); }
-function addInspector() {
+async function getInspectores() { try { return JSON.parse((await SecStore.get('inspectores_reg')) || '[]'); } catch (e) { return []; } }
+async function setInspectores(arr) { await SecStore.set('inspectores_reg', JSON.stringify(arr)); }
+async function addInspector() {
   const inp = document.getElementById('inspInput');
   const n = (inp.value || '').trim();
   if (!n) return;
-  const arr = getInspectores();
+  const arr = await getInspectores();
   if (!arr.some(x => x.toLowerCase() === n.toLowerCase())) arr.push(n);
   arr.sort((a, b) => a.localeCompare(b, 'es'));
-  setInspectores(arr); inp.value = '';
+  await setInspectores(arr); inp.value = '';
   renderInspList(); buildDatalists();
 }
-function removeInspector(i) {
-  const arr = getInspectores(); arr.splice(i, 1); setInspectores(arr);
+async function removeInspector(i) {
+  const arr = await getInspectores(); arr.splice(i, 1); await setInspectores(arr);
   renderInspList(); buildDatalists();
 }
-function renderInspList() {
+async function renderInspList() {
   const c = document.getElementById('inspList'); if (!c) return;
-  const arr = getInspectores();
+  const arr = await getInspectores();
   c.innerHTML = arr.length
     ? arr.map((n, i) => `<span class="insp-chip">${esc(n)}<button onclick="removeInspector(${i})" aria-label="Quitar">×</button></span>`).join('')
     : '<span class="insp-empty">Todavía no hay inspectores cargados.</span>';
@@ -3477,15 +3543,19 @@ function renderPending(pend, activas) {
   if (!p) return;
   var html = '';
   (pend || []).forEach(function (d) {
+    var dId = encodeURIComponent(String(d.id || ''));
+    var dDraft = encodeURIComponent(String(d.draft_id || ''));
     html += '<div class="pending-card"><div class="pc-txt"><b>' + esc(d.inspector1_nombre || 'Un inspector') +
       '</b> te está incorporando como <b>Agente 2</b> en una inspección.</div>' +
-      '<div class="pc-actions"><button class="btn btn-accent" onclick="aceptarDesig(\'' + d.id + '\',\'' + d.draft_id + '\')">Aceptar</button>' +
-      '<button class="btn btn-ghost" onclick="rechazarDesig(\'' + d.id + '\')">Rechazar</button></div></div>';
+      '<div class="pc-actions"><button class="btn btn-accent" onclick="aceptarDesig(\'' + dId + '\',\'' + dDraft + '\')">Aceptar</button>' +
+      '<button class="btn btn-ghost" onclick="rechazarDesig(\'' + dId + '\')">Rechazar</button></div></div>';
   });
   (activas || []).forEach(function (d) {
+    var dId = encodeURIComponent(String(d.id || ''));
+    var dDraft = encodeURIComponent(String(d.draft_id || ''));
     html += '<div class="pending-card" style="background:#eef6ff;border-color:#bfdbfe"><div class="pc-txt">Inspección activa con <b>' + esc(d.inspector1_nombre || 'el titular') +
       '</b>. Seguí lo que carga y sumá fotos.</div>' +
-      '<div class="pc-actions"><button class="btn btn-primary" onclick="openAportarFotos(\'' + d.draft_id + '\',\'' + d.id + '\')">👁 Ver inspección / fotos</button></div></div>';
+      '<div class="pc-actions"><button class="btn btn-primary" onclick="openAportarFotos(\'' + dDraft + '\',\'' + dId + '\')">👁 Ver inspección / fotos</button></div></div>';
   });
   p.innerHTML = html;
   var fab = document.getElementById('coFab');
@@ -3500,6 +3570,7 @@ function renderPending(pend, activas) {
   });
 }
 async function aceptarDesig(id, draftId) {
+  id = decodeURIComponent(String(id || '')); draftId = decodeURIComponent(String(draftId || ''));
   if (!CURRENT_USER.firma) { toast('Registrá tu firma digital primero'); openFirmaModal(); return; }
   var r = await supa.rpc('aceptar_designacion', { p_id: id });
   if (r.error) {
@@ -3512,6 +3583,7 @@ async function aceptarDesig(id, draftId) {
   if (draftId) openAportarFotos(draftId, id);
 }
 async function rechazarDesig(id) {
+  id = decodeURIComponent(String(id || ''));
   await supa.rpc('rechazar_designacion', { p_id: id });
   toast('Rechazaste la designación'); loadPending();
 }
@@ -3727,9 +3799,11 @@ async function loadCoGaleria() {
   if (!rows.length) { g.innerHTML = '<div style="grid-column:1/-1;color:#94a3b8;font-size:.85rem;text-align:center;padding:14px">Todavía no hay fotos. Sacá la primera.</div>'; return; }
   g.innerHTML = rows.map(function (row) {
     var mine = row.autor_id === CURRENT_USER.id;
+    var safeId = encodeURIComponent(String(row.id || ''));
+    var safeUrl = escUrl(row.foto);
     return '<div style="position:relative;aspect-ratio:1;border-radius:8px;overflow:hidden;border:1px solid #e6ebf2">' +
-      '<img src="' + row.foto + '" style="width:100%;height:100%;object-fit:cover">' +
-      (mine ? '<button onclick="delCoFoto(\'' + row.id + '\')" style="position:absolute;top:2px;right:2px;background:rgba(220,38,38,.92);color:#fff;border:none;border-radius:50%;width:20px;height:20px;line-height:18px;cursor:pointer">×</button>' : '') +
+      (safeUrl ? '<img src="' + safeUrl + '" style="width:100%;height:100%;object-fit:cover">' : '') +
+      (mine ? '<button onclick="delCoFoto(\'' + safeId + '\')" style="position:absolute;top:2px;right:2px;background:rgba(220,38,38,.92);color:#fff;border:none;border-radius:50%;width:20px;height:20px;line-height:18px;cursor:pointer">×</button>' : '') +
       '</div>';
   }).join('');
 }

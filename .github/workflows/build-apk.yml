@@ -38,6 +38,7 @@ jobs:
           JAVA_DIR="inspector-app/android/app/src/main/java/ar/gob/chubut/sigpip/inspecciones"
           mkdir -p "$JAVA_DIR"
           cp inspector-app/android-plugin/MockLocationPlugin.java "$JAVA_DIR/"
+          cp inspector-app/android-plugin/RootDetectionPlugin.java "$JAVA_DIR/"
           cp inspector-app/android-plugin/MainActivity.java "$JAVA_DIR/"
 
       - name: Sincronizar Capacitor con Android
@@ -78,6 +79,23 @@ jobs:
           rm -f "$RES/drawable/ic_launcher_foreground.xml"
           rm -f "$RES/drawable/ic_launcher_background.xml"
           rm -rf "$RES/mipmap-anydpi-v26"
+
+      - name: Forzar debuggable=false en AndroidManifest
+        run: |
+          python3 - <<'EOF'
+          path = "inspector-app/android/app/src/main/AndroidManifest.xml"
+          with open(path, encoding="utf-8") as f:
+              m = f.read()
+          # Quitar cualquier android:debuggable="true" que Capacitor pueda haber puesto
+          import re
+          m = re.sub(r'android:debuggable="true"', 'android:debuggable="false"', m)
+          # Si no existe el atributo, lo agrega en la etiqueta <application
+          if 'android:debuggable' not in m:
+              m = m.replace('<application', '<application android:debuggable="false"', 1)
+          with open(path, "w", encoding="utf-8") as f:
+              f.write(m)
+          print("debuggable=false OK")
+          EOF
 
       - name: Restaurar keystore de firma
         run: echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > inspector-app/android/sigpip.keystore
