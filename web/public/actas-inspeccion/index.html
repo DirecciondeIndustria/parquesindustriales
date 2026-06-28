@@ -2128,6 +2128,15 @@ async function checkFakeGPS() {
 // Bandera para activar diagnóstico de GPS (se enciende tocando 5 veces el título).
 window.GPS_DEBUG = false;
 
+// Silenciar logs en producción (no exponer stack traces)
+(function () {
+  const noop = function () {};
+  if (window.Capacitor) {
+    // En la app nativa nunca hay devtools: silenciar todo
+    window.console = { log: noop, warn: noop, error: noop, info: noop, debug: noop };
+  }
+})();
+
 // ── Almacenamiento seguro ─────────────────────────────────────────
 // En la app nativa usa @capacitor/preferences (cifrado por el SO).
 // En browser usa localStorage como fallback.
@@ -2290,10 +2299,41 @@ async function getSatImageDataUrl(lat, lng) {
   } catch (e) { return null; }
 }
 
+// Validación de entrada antes de guardar
+function validateActaData(d) {
+  // CUIT: solo dígitos y guiones, formato XX-XXXXXXXX-X
+  if (d.cuit && !/^\d{2}-?\d{8}-?\d{1}$/.test(d.cuit.replace(/\s/g, ''))) {
+    return 'El CUIT ingresado no tiene un formato válido.';
+  }
+  // Email: si se ingresó, debe ser válido
+  if (d.emailEmpresa && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(d.emailEmpresa)) {
+    return 'El email de la empresa no es válido.';
+  }
+  // Longitud máxima de campos de texto libre (previene payloads gigantes)
+  const camposTexto = ['razonSocial', 'domicilioEmpresa', 'observaciones', 'respNombre', 'respApellido', 'respCargo'];
+  for (const campo of camposTexto) {
+    if (d[campo] && String(d[campo]).length > 500) {
+      return `El campo "${campo}" supera el máximo permitido de 500 caracteres.`;
+    }
+  }
+  // Número de acta debe ser entero positivo
+  if (d.actaNum && (isNaN(parseInt(d.actaNum)) || parseInt(d.actaNum) < 1)) {
+    return 'El número de acta debe ser un número positivo.';
+  }
+  return null; // OK
+}
+
 async function doSaveActa() {
   document.getElementById('loadingOverlay').classList.add('show');
   document.getElementById('loadingText').textContent = 'Obteniendo ubicación…';
   try {
+    // Validar antes de continuar
+    const validErr = validateActaData(collectFormData());
+    if (validErr) {
+      document.getElementById('loadingOverlay').classList.remove('show');
+      alert('⚠️ Datos inválidos\n\n' + validErr);
+      return;
+    }
     const geo = editingId ? null : await getGeo();
     // getGeo() retorna el sentinel {blocked:true} cuando detecta fake GPS → abortar
     if (geo && geo.blocked) {
@@ -2941,7 +2981,7 @@ async function discardDraft() {
 function openLightbox(i) {
   if (!lbPhotos.length) return;
   lbIndex = i;
-  document.getElementById('lbImg').src = lbPhotos[i];
+  document.getElementById('lbImg').src = escUrl(lbPhotos[i]) || '';
   document.getElementById('lbCount').textContent = (i + 1) + ' / ' + lbPhotos.length;
   document.getElementById('lightbox').classList.add('show');
 }
@@ -3593,7 +3633,7 @@ function subscribePending() {
   _chPending = supa.channel('pending_' + CURRENT_USER.id)
     .on('postgres_changes', { event: '*', schema: 'public', table: 'actas_designaciones', filter: 'inspector2_id=eq.' + CURRENT_USER.id }, function (p) {
       if (p.eventType === 'INSERT' && p.new && p.new.estado === 'pendiente') {
-        beep(); toast((p.new.inspector1_nombre || 'Un inspector') + ' te incorpora como Agente 2');
+        beep(); toast(esc(p.new.inspector1_nombre || 'Un inspector') + ' te incorpora como Agente 2');
       }
       if (p.eventType === 'UPDATE' && p.new && (p.new.estado === 'cancelada' || p.new.estado === 'finalizada')
           && window._coDraftId && p.new.draft_id === window._coDraftId) {
