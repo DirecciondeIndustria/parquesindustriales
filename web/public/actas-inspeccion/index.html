@@ -2182,6 +2182,37 @@ function _gpsDebugTap() {
   }
 }
 
+// Toma lecturas continuas del GPS y devuelve la MÁS precisa. Corta apenas
+// alcanza la precisión objetivo (targetAcc, en metros) o al vencer maxMs.
+// Así evita quedarse con la primera lectura aproximada (±30-50m por red).
+async function watchBestPosition(Geo, opts) {
+  var targetAcc = (opts && opts.targetAcc) || 12;
+  var maxMs = (opts && opts.maxMs) || 20000;
+  return new Promise(function (resolve) {
+    var best = null, watchId = null, done = false;
+    function finish() {
+      if (done) return; done = true;
+      clearTimeout(timer);
+      try { if (watchId) Geo.clearWatch({ id: watchId }); } catch (e) {}
+      resolve(best);
+    }
+    var timer = setTimeout(finish, maxMs);
+    Geo.watchPosition({ enableHighAccuracy: true, timeout: maxMs, maximumAge: 0 },
+      function (pos, err) {
+        if (err || !pos || !pos.coords) return;
+        var acc = pos.coords.accuracy || 9999;
+        if (!best || acc < best.acc) {
+          best = { lat: pos.coords.latitude, lng: pos.coords.longitude, acc: acc };
+        }
+        if (best.acc <= targetAcc) finish();
+      }
+    ).then(function (id) {
+      watchId = id;
+      if (done) { try { Geo.clearWatch({ id: id }); } catch (e) {} }
+    }).catch(function () { finish(); });
+  });
+}
+
 // Ubicación donde se confirma el acta. En la app nativa usa el plugin de
 // Capacitor y BLOQUEA si detecta GPS simulado.
 async function getGeo() {
@@ -2214,6 +2245,11 @@ async function getGeo() {
     try {
       var Geo2 = window.Capacitor.Plugins.Geolocation;
       if (Geo2) {
+        // Esperar a que el GPS afine: tomamos lecturas continuas y nos
+        // quedamos con la mejor. Cortamos al llegar a ±12m o tras 20s.
+        var best = await watchBestPosition(Geo2, { targetAcc: 12, maxMs: 20000 });
+        if (best) return { lat: best.lat, lng: best.lng, acc: best.acc };
+        // Si watch no dio nada, una lectura simple como respaldo.
         var pos = await Geo2.getCurrentPosition({ enableHighAccuracy: true, timeout: 18000 });
         return { lat: pos.coords.latitude, lng: pos.coords.longitude, acc: pos.coords.accuracy || null };
       }
