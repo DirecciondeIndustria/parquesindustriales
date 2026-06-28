@@ -2102,16 +2102,28 @@ async function checkFakeGPS() {
 // Capacitor (más confiable en WebView) y bloquea si detecta fake GPS.
 async function getGeo() {
   if (window.Capacitor) {
+    try {
+      var Geo = window.Capacitor.Plugins.Geolocation;
+      // Pedir permiso PRIMERO para que el plugin de detección pueda acceder al GPS
+      if (Geo) await Geo.requestPermissions();
+    } catch (e) { /* continuar igual */ }
+
+    // Ahora verificar fake GPS (ya con permiso concedido)
     var fakeDetected = await checkFakeGPS();
     if (fakeDetected) {
       alert('⚠️ GPS simulado detectado\n\nSe detectó una aplicación de ubicación falsa activa en este dispositivo. No se puede registrar el acta.\n\nDesactivá el GPS falso y volvé a intentarlo.');
       return { blocked: true };
     }
+
     try {
       var Geo = window.Capacitor.Plugins.Geolocation;
       if (Geo) {
-        await Geo.requestPermissions();
         var pos = await Geo.getCurrentPosition({ enableHighAccuracy: true, timeout: 18000 });
+        // Verificar si la ubicación obtenida es simulada
+        if (pos && pos.simulated) {
+          alert('⚠️ GPS simulado detectado\n\nLa ubicación recibida es falsa. No se puede registrar el acta.');
+          return { blocked: true };
+        }
         return { lat: pos.coords.latitude, lng: pos.coords.longitude, acc: pos.coords.accuracy || null };
       }
     } catch (e) {

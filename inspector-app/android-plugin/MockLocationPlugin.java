@@ -33,7 +33,7 @@ public class MockLocationPlugin extends Plugin {
             } catch (SecurityException ignored) {}
         }
 
-        // Sin ubicación en caché: pedir una fresca con timeout de 6 segundos
+        // Sin ubicación en caché: pedir una fresca de GPS con timeout de 8 segundos
         Handler handler = new Handler(Looper.getMainLooper());
         final boolean[] resolved = { false };
 
@@ -51,19 +51,28 @@ public class MockLocationPlugin extends Plugin {
             @Override public void onProviderDisabled(String p) {}
         };
 
-        // Timeout: si no llega ubicación en 6s, no bloqueamos
         handler.postDelayed(() -> {
             if (resolved[0]) return;
             resolved[0] = true;
             try { lm.removeUpdates(listener); } catch (SecurityException ignored) {}
+            // Timeout sin ubicación: no bloqueamos para no perjudicar inspectores sin señal
             JSObject ret = new JSObject();
             ret.put("isMocked", false);
             call.resolve(ret);
-        }, 6000);
+        }, 8000);
 
-        try {
-            lm.requestSingleUpdate(LocationManager.NETWORK_PROVIDER, listener, Looper.getMainLooper());
-        } catch (SecurityException e) {
+        // Intentar GPS primero (es el provider que fakeean), luego NETWORK
+        boolean requested = false;
+        for (String provider : new String[]{ LocationManager.GPS_PROVIDER, LocationManager.NETWORK_PROVIDER }) {
+            try {
+                if (lm.isProviderEnabled(provider)) {
+                    lm.requestSingleUpdate(provider, listener, Looper.getMainLooper());
+                    requested = true;
+                    break;
+                }
+            } catch (SecurityException ignored) {}
+        }
+        if (!requested) {
             resolved[0] = true;
             JSObject ret = new JSObject();
             ret.put("isMocked", false);
