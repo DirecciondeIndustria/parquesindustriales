@@ -2040,16 +2040,44 @@ async function cancelarCierre() {
   if (window._coDesigId) { try { await supa.rpc('cancelar_cierre_acta', { p_id: window._coDesigId }); } catch (e) {} }
 }
 
-// Ubicación donde se confirma el acta (GPS del celular). Nunca bloquea el
-// guardado: si el inspector niega el permiso o tarda, sigue sin ubicación.
-function getGeo() {
+// Detecta si hay una app de GPS falso instalada (solo en la app nativa Android).
+async function checkFakeGPS() {
+  try {
+    if (!window.Capacitor) return false;
+    var MockLocation = window.Capacitor.Plugins.MockLocation;
+    if (!MockLocation) return false;
+    var result = await MockLocation.check();
+    return result.isMocked === true;
+  } catch (e) { return false; }
+}
+
+// Ubicación donde se confirma el acta. En la app nativa usa el plugin de
+// Capacitor (más confiable en WebView) y bloquea si detecta fake GPS.
+async function getGeo() {
+  if (window.Capacitor) {
+    var fakeDetected = await checkFakeGPS();
+    if (fakeDetected) {
+      alert('⚠️ GPS simulado detectado\n\nSe detectó una aplicación de ubicación falsa instalada en este dispositivo. No se puede registrar el acta.\n\nDesinstalá la app de GPS falso y volvé a intentarlo.');
+      return null;
+    }
+    try {
+      var Geo = window.Capacitor.Plugins.Geolocation;
+      if (Geo) {
+        await Geo.requestPermissions();
+        var pos = await Geo.getCurrentPosition({ enableHighAccuracy: true, timeout: 18000 });
+        return { lat: pos.coords.latitude, lng: pos.coords.longitude, acc: pos.coords.accuracy || null };
+      }
+    } catch (e) {
+      console.warn('Capacitor Geolocation falló, usando fallback:', e);
+    }
+  }
+  // Fallback: navegador web normal
   return new Promise(function (resolve) {
     if (!navigator.geolocation) { resolve(null); return; }
     var done = false;
     function finish(v) { if (done) return; done = true; clearTimeout(t); resolve(v); }
     var t = setTimeout(function () { finish(null); }, 18000);
     function ok(pos) { finish({ lat: pos.coords.latitude, lng: pos.coords.longitude, acc: pos.coords.accuracy || null }); }
-    // 1º intento: alta precisión. Si falla, 2º intento rápido de baja precisión.
     navigator.geolocation.getCurrentPosition(ok, function () {
       navigator.geolocation.getCurrentPosition(ok, function () { finish(null); },
         { enableHighAccuracy: false, timeout: 8000, maximumAge: 60000 });
