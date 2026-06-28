@@ -2261,7 +2261,9 @@ function _loadTile(url) {
 }
 async function getSatImageDataUrl(lat, lng) {
   try {
-    var zoom = 19, grid = 3, TILE = 256, out = 540, half = (grid - 1) / 2;
+    // zoom 17 = máximo nativo de Esri World Imagery (igual que la página SIGPIP).
+    // Pedir zoom 19 devolvía el tile "Map data not yet available" en zonas rurales.
+    var zoom = 17, grid = 3, TILE = 256, out = 540, half = (grid - 1) / 2;
     var n = Math.pow(2, zoom);
     var xf = ((lng + 180) / 360) * n;
     var latRad = lat * Math.PI / 180;
@@ -2826,7 +2828,7 @@ async function renderPDF(d, returnBase64) {
         try { doc.addImage(satImg, 'JPEG', gix, y, imgW, imgH); doc.setDrawColor(...C_LIGHT); doc.setLineWidth(0.3); doc.rect(gix, y, imgW, imgH); } catch (e) {}
         y += imgH + 3;
         setFont('italic', 6.5, C_GRAY);
-        doc.text('© MapTiler © Maxar', gix + imgW, y, { align: 'right' });
+        doc.text('© Esri © Maxar', gix + imgW, y, { align: 'right' });
         y += 4;
       }
     }
