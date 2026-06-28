@@ -1,11 +1,11 @@
 // Arma una imagen satelital estática (JPEG dataURL) a partir de los tiles
-// de Bing Maps Aerial, centrada en un punto, con un pin marcando el lugar.
+// de Esri World Imagery, centrada en un punto, con un pin marcando el lugar.
 // Sirve para incrustar en el PDF del acta (jsPDF.addImage no acepta mapas).
 
-import { bingTileUrl } from './bing';
-
 const TILE = 256;
-const tileUrl = (z: number, x: number, y: number) => bingTileUrl(x, y, z);
+// Esri usa orden z/y/x
+const tileUrl = (z: number, x: number, y: number) =>
+  `https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/${z}/${y}/${x}`;
 
 function loadImg(url: string): Promise<HTMLImageElement | null> {
   return new Promise((resolve) => {

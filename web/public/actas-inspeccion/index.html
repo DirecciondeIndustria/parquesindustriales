@@ -2095,10 +2095,8 @@ async function getSatImageDataUrl(lat, lng) {
     for (var dx = -half; dx <= half; dx++) {
       for (var dy = -half; dy <= half; dy++) {
         (function (dx, dy) {
-          var tx = xt + dx, ty = yt + dy;
-          var q = _toQuadkey(tx, ty, zoom);
-          var sub = (tx + ty) & 3;
-          var url = 'https://ecn.t' + sub + '.tiles.virtualearth.net/tiles/a' + q + '.jpeg?g=1&key=' + BING_KEY;
+          // Esri usa orden z/y/x
+          var url = 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/' + zoom + '/' + (yt + dy) + '/' + (xt + dx);
           tasks.push(_loadTile(url).then(function (im) {
             if (im) ctx.drawImage(im, (dx + half) * TILE, (dy + half) * TILE);
           }));
