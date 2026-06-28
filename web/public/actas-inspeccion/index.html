@@ -2207,10 +2207,7 @@ async function getGeo() {
     }
 
     if (chk.isMocked === true) {
-      var motivo = chk.mockAppSet
-        ? 'Hay una app de ubicación simulada seleccionada en Opciones de desarrollador.'
-        : 'La ubicación del dispositivo está siendo simulada.';
-      alert('⚠️ GPS simulado detectado\n\n' + motivo + '\n\nNo se puede registrar el acta.\n\nDesactivá el GPS falso (Opciones de desarrollador → Seleccionar app de ubicación simulada → Ninguna) y desinstalá la app de Fake GPS. Después volvé a intentarlo.');
+      alert('⚠️ GPS simulado detectado\n\nLa ubicación del dispositivo está siendo simulada.\n\nNo se puede registrar el acta.\n\nDesactivá el GPS falso (Opciones de desarrollador → Seleccionar app de ubicación simulada → Ninguna) y desinstalá la app de Fake GPS. Después volvé a intentarlo.');
       return { blocked: true };
     }
 
