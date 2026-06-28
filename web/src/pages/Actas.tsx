@@ -5,7 +5,7 @@ import { Modal, Boton, inputCls, EncabezadoPagina, Skeleton } from '../component
 import { fmtFecha } from '../lib/fechas';
 import { renderActaPdf } from '../lib/pdfActaOficial';
 import { satelliteDataUrl } from '../lib/satelite';
-import { SAT_TILE_URL, SAT_ATTR, SAT_MAX_ZOOM, SAT_MAX_NATIVE, CONAE_WMS_URL, CONAE_LAYER } from '../lib/maptiler';
+import { SAT_TILE_URL, SAT_ATTR, SAT_MAX_ZOOM, SAT_MAX_NATIVE } from '../lib/maptiler';
 import { usePermisos } from '../lib/permisos';
 import {
   type Terreno, fetchTerrenos, parseKmz, saveTerrenos, deleteTerrenosByArchivo,
@@ -331,7 +331,6 @@ function MapaActas({ actas, onSel, terrenos }: { actas: Acta[]; onSel: (a: Acta)
       if (inst.current) { inst.current.remove(); inst.current = null; }
       const map = L.map(el.current, { scrollWheelZoom: true });
       L.tileLayer(SAT_TILE_URL, { maxZoom: SAT_MAX_ZOOM, maxNativeZoom: SAT_MAX_NATIVE, attribution: SAT_ATTR }).addTo(map);
-      L.tileLayer.wms(CONAE_WMS_URL, { layers: CONAE_LAYER, format: 'image/png', transparent: true, opacity: 0.7, attribution: '© CONAE SAOCOM' }).addTo(map);
       // Capa de terrenos (polígonos de los KMZ).
       terrenos.forEach((t) => {
         if (!t.geom?.coordinates) return;
@@ -392,7 +391,6 @@ function UbicacionFirma({ lat, lng, acc, at, terrenos }: { lat: number; lng: num
       if (mapInst.current) { mapInst.current.remove(); mapInst.current = null; }
       const map = L.map(mapEl.current, { scrollWheelZoom: false }).setView([lat, lng], 18);
       L.tileLayer(SAT_TILE_URL, { maxZoom: SAT_MAX_ZOOM, maxNativeZoom: SAT_MAX_NATIVE, attribution: SAT_ATTR }).addTo(map);
-      L.tileLayer.wms(CONAE_WMS_URL, { layers: CONAE_LAYER, format: 'image/png', transparent: true, opacity: 0.7, attribution: '© CONAE SAOCOM' }).addTo(map);
       // Polígono del terreno que contiene el punto.
       if (terreno?.geom?.coordinates) {
         const poly = L.polygon(terreno.geom.coordinates.map(ringToLatLng), {
