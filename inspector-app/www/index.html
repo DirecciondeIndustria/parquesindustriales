@@ -2053,24 +2053,36 @@ async function checkFakeGPS() {
   } catch (e) { return false; }
 }
 
-// Ubicación donde se confirma el acta (GPS del celular). En la app nativa
-// bloquea el guardado si detecta una app de GPS simulado instalada.
+// Ubicación donde se confirma el acta. En la app nativa usa el plugin de
+// Capacitor (más confiable en WebView) y bloquea si detecta fake GPS.
 async function getGeo() {
-  // Verificar fake GPS solo dentro de la app Android
   if (window.Capacitor) {
+    // Verificar fake GPS
     var fakeDetected = await checkFakeGPS();
     if (fakeDetected) {
       alert('⚠️ GPS simulado detectado\n\nSe detectó una aplicación de ubicación falsa instalada en este dispositivo. No se puede registrar el acta.\n\nDesinstalá la app de GPS falso y volvé a intentarlo.');
       return null;
     }
+    // Usar plugin nativo de Capacitor (funciona correctamente en WebView Android)
+    try {
+      var Geo = window.Capacitor.Plugins.Geolocation;
+      if (Geo) {
+        await Geo.requestPermissions();
+        var pos = await Geo.getCurrentPosition({ enableHighAccuracy: true, timeout: 18000 });
+        return { lat: pos.coords.latitude, lng: pos.coords.longitude, acc: pos.coords.accuracy || null };
+      }
+    } catch (e) {
+      // Si el plugin falla, intenta con navigator.geolocation como fallback
+      console.warn('Capacitor Geolocation falló, usando fallback:', e);
+    }
   }
+  // Fallback: navigator.geolocation (browser web o si el plugin falla)
   return new Promise(function (resolve) {
     if (!navigator.geolocation) { resolve(null); return; }
     var done = false;
     function finish(v) { if (done) return; done = true; clearTimeout(t); resolve(v); }
     var t = setTimeout(function () { finish(null); }, 18000);
     function ok(pos) { finish({ lat: pos.coords.latitude, lng: pos.coords.longitude, acc: pos.coords.accuracy || null }); }
-    // 1º intento: alta precisión. Si falla, 2º intento rápido de baja precisión.
     navigator.geolocation.getCurrentPosition(ok, function () {
       navigator.geolocation.getCurrentPosition(ok, function () { finish(null); },
         { enableHighAccuracy: false, timeout: 8000, maximumAge: 60000 });
