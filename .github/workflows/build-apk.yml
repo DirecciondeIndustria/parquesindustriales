@@ -40,26 +40,25 @@ jobs:
           cp inspector-app/android-plugin/MockLocationPlugin.java "$JAVA_DIR/"
           cp inspector-app/android-plugin/MainActivity.java "$JAVA_DIR/"
 
+      - name: Sincronizar Capacitor con Android
+        run: cd inspector-app && npx cap sync android
+
       - name: Generar íconos de app en todos los tamaños Android
         run: |
           sudo apt-get install -y imagemagick
           ICON="inspector-app/icon-source.png"
           RES="inspector-app/android/app/src/main/res"
-          # Fondo blanco para el ícono (la silueta es transparente)
-          convert "$ICON" -background white -flatten -resize 48x48   "$RES/mipmap-mdpi/ic_launcher.png"
-          convert "$ICON" -background white -flatten -resize 72x72   "$RES/mipmap-hdpi/ic_launcher.png"
-          convert "$ICON" -background white -flatten -resize 96x96   "$RES/mipmap-xhdpi/ic_launcher.png"
-          convert "$ICON" -background white -flatten -resize 144x144 "$RES/mipmap-xxhdpi/ic_launcher.png"
-          convert "$ICON" -background white -flatten -resize 192x192 "$RES/mipmap-xxxhdpi/ic_launcher.png"
-          # Íconos redondos (mismas imágenes)
-          cp "$RES/mipmap-mdpi/ic_launcher.png"    "$RES/mipmap-mdpi/ic_launcher_round.png"
-          cp "$RES/mipmap-hdpi/ic_launcher.png"    "$RES/mipmap-hdpi/ic_launcher_round.png"
-          cp "$RES/mipmap-xhdpi/ic_launcher.png"   "$RES/mipmap-xhdpi/ic_launcher_round.png"
-          cp "$RES/mipmap-xxhdpi/ic_launcher.png"  "$RES/mipmap-xxhdpi/ic_launcher_round.png"
-          cp "$RES/mipmap-xxxhdpi/ic_launcher.png" "$RES/mipmap-xxxhdpi/ic_launcher_round.png"
-
-      - name: Sincronizar Capacitor con Android
-        run: cd inspector-app && npx cap sync android
+          # Íconos estándar (fondo blanco para que la silueta se vea bien)
+          for size in "48:mdpi" "72:hdpi" "96:xhdpi" "144:xxhdpi" "192:xxxhdpi"; do
+            px="${size%%:*}"; dpi="${size##*:}"
+            convert "$ICON" -background white -flatten -resize "${px}x${px}" "$RES/mipmap-${dpi}/ic_launcher.png"
+            cp "$RES/mipmap-${dpi}/ic_launcher.png" "$RES/mipmap-${dpi}/ic_launcher_round.png"
+          done
+          # Ícono foreground para adaptive icons (Android 8+) — sin fondo, más grande
+          convert "$ICON" -background none -resize 432x432 -gravity center -extent 432x432 "$RES/drawable/ic_launcher_foreground.png" 2>/dev/null || \
+          convert "$ICON" -background none -resize 432x432 "$RES/drawable/ic_launcher_foreground.png"
+          # Fondo blanco para adaptive icon
+          convert -size 432x432 xc:white "$RES/drawable/ic_launcher_background.png"
 
       - name: Restaurar keystore de firma
         run: echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > inspector-app/android/sigpip.keystore
