@@ -1,0 +1,16 @@
+{
+  "appId": "ar.gob.chubut.sigpip.inspecciones",
+  "appName": "SIGPIP Inspecciones",
+  "webDir": "www",
+  "android": {
+    "buildOptions": {
+      "keystorePath": null,
+      "keystoreAlias": null
+    }
+  },
+  "plugins": {
+    "SplashScreen": {
+      "launchShowDuration": 0
+    }
+  }
+}
