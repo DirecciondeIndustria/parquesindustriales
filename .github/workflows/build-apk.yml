@@ -43,6 +43,26 @@ jobs:
       - name: Sincronizar Capacitor con Android
         run: cd inspector-app && npx cap sync android
 
+      - name: Agregar permisos al AndroidManifest
+        run: |
+          python3 - <<'EOF'
+          path = "inspector-app/android/app/src/main/AndroidManifest.xml"
+          with open(path, encoding="utf-8") as f:
+              m = f.read()
+          perms = [
+              "android.permission.ACCESS_FINE_LOCATION",
+              "android.permission.ACCESS_COARSE_LOCATION",
+              "android.permission.QUERY_ALL_PACKAGES",
+          ]
+          for name in perms:
+              if name not in m:
+                  tag = '    <uses-permission android:name="%s"/>\n' % name
+                  m = m.replace("</manifest>", tag + "</manifest>")
+          with open(path, "w", encoding="utf-8") as f:
+              f.write(m)
+          print("Permisos en manifest OK")
+          EOF
+
       - name: Generar íconos de app en todos los tamaños Android
         run: |
           sudo apt-get install -y imagemagick

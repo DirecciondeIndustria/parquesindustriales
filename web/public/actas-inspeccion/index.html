@@ -997,7 +997,7 @@ if (!window.Capacitor) {
     </button>
     <div class="hdr-logo"><img id="hdrLogo" alt="Ministerio de Producción"></div>
     <div class="hdr-titles">
-      <h1 id="hdrTitle">Inspecciones Industriales</h1>
+      <h1 id="hdrTitle" onclick="_gpsDebugTap()">Inspecciones Industriales</h1>
       <div class="sub">Ministerio de Producción · Gobierno del Chubut</div>
     </div>
     <button class="hdr-gear" id="hdrGear" onclick="openSettings()" aria-label="Configuración">
@@ -2087,43 +2087,72 @@ async function savePDF(doc, filename) {
   }
 }
 
-// Detecta si hay una app de GPS falso instalada (solo en la app nativa Android).
+// Detecta GPS simulado (solo en la app nativa Android). Devuelve el objeto
+// completo del plugin para poder diagnosticar qué señal disparó la detección.
 async function checkFakeGPS() {
+  var MockLocation = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.MockLocation;
+  if (!MockLocation) {
+    return { pluginWorks: false, isMocked: false, missing: true };
+  }
   try {
-    if (!window.Capacitor) return false;
-    var MockLocation = window.Capacitor.Plugins.MockLocation;
-    if (!MockLocation) return false;
     var result = await MockLocation.check();
-    return result.isMocked === true;
-  } catch (e) { return false; }
+    return result || { pluginWorks: false, isMocked: false };
+  } catch (e) {
+    return { pluginWorks: false, isMocked: false, error: String(e) };
+  }
+}
+
+// Bandera para activar diagnóstico de GPS (se enciende tocando 5 veces el título).
+window.GPS_DEBUG = false;
+window._gpsTaps = 0;
+window._gpsTapTimer = null;
+function _gpsDebugTap() {
+  window._gpsTaps++;
+  clearTimeout(window._gpsTapTimer);
+  window._gpsTapTimer = setTimeout(function () { window._gpsTaps = 0; }, 1500);
+  if (window._gpsTaps >= 5) {
+    window._gpsTaps = 0;
+    window.GPS_DEBUG = !window.GPS_DEBUG;
+    alert('Diagnóstico GPS: ' + (window.GPS_DEBUG ? 'ACTIVADO' : 'desactivado'));
+  }
 }
 
 // Ubicación donde se confirma el acta. En la app nativa usa el plugin de
-// Capacitor (más confiable en WebView) y bloquea si detecta fake GPS.
+// Capacitor y BLOQUEA si detecta GPS simulado.
 async function getGeo() {
   if (window.Capacitor) {
     try {
       var Geo = window.Capacitor.Plugins.Geolocation;
-      // Pedir permiso PRIMERO para que el plugin de detección pueda acceder al GPS
+      // Pedir permiso PRIMERO para que la detección pueda acceder al GPS
       if (Geo) await Geo.requestPermissions();
     } catch (e) { /* continuar igual */ }
 
-    // Ahora verificar fake GPS (ya con permiso concedido)
-    var fakeDetected = await checkFakeGPS();
-    if (fakeDetected) {
-      alert('⚠️ GPS simulado detectado\n\nSe detectó una aplicación de ubicación falsa activa en este dispositivo. No se puede registrar el acta.\n\nDesactivá el GPS falso y volvé a intentarlo.');
+    // Verificar GPS simulado (ya con permiso concedido)
+    var chk = await checkFakeGPS();
+
+    if (window.GPS_DEBUG) {
+      alert('🔍 Diagnóstico GPS\n\n' + JSON.stringify(chk, null, 2));
+    }
+
+    // Si el plugin no respondió, es un error de instalación: bloqueamos por
+    // seguridad (no podemos garantizar que la ubicación sea real).
+    if (chk.missing) {
+      alert('⚠️ No se pudo verificar la ubicación\n\nEl módulo de seguridad de GPS no está disponible en esta versión de la app. Actualizá la app (instalá el último APK) para poder registrar actas.');
+      return { blocked: true };
+    }
+
+    if (chk.isMocked === true) {
+      var motivo = chk.mockAppSet
+        ? 'Hay una app de ubicación simulada seleccionada en Opciones de desarrollador.'
+        : 'La ubicación del dispositivo está siendo simulada.';
+      alert('⚠️ GPS simulado detectado\n\n' + motivo + '\n\nNo se puede registrar el acta.\n\nDesactivá el GPS falso (Opciones de desarrollador → Seleccionar app de ubicación simulada → Ninguna) y desinstalá la app de Fake GPS. Después volvé a intentarlo.');
       return { blocked: true };
     }
 
     try {
-      var Geo = window.Capacitor.Plugins.Geolocation;
-      if (Geo) {
-        var pos = await Geo.getCurrentPosition({ enableHighAccuracy: true, timeout: 18000 });
-        // Verificar si la ubicación obtenida es simulada
-        if (pos && pos.simulated) {
-          alert('⚠️ GPS simulado detectado\n\nLa ubicación recibida es falsa. No se puede registrar el acta.');
-          return { blocked: true };
-        }
+      var Geo2 = window.Capacitor.Plugins.Geolocation;
+      if (Geo2) {
+        var pos = await Geo2.getCurrentPosition({ enableHighAccuracy: true, timeout: 18000 });
         return { lat: pos.coords.latitude, lng: pos.coords.longitude, acc: pos.coords.accuracy || null };
       }
     } catch (e) {
