@@ -2057,8 +2057,21 @@ function getGeo() {
   });
 }
 
-// Arma una imagen satelital estática (dataURL) desde los tiles de Esri World
-// Imagery para incrustar en el PDF (jsPDF no acepta mapas). Tiles con CORS.
+// Convierte coordenadas XYZ al formato quadkey que usa Bing Maps.
+function _toQuadkey(x, y, z) {
+  var q = '';
+  for (var i = z; i > 0; i--) {
+    var d = 0, m = 1 << (i - 1);
+    if (x & m) d++;
+    if (y & m) d += 2;
+    q += d;
+  }
+  return q;
+}
+var BING_KEY = 'TU_BING_KEY_AQUI';
+
+// Arma una imagen satelital estática (dataURL) desde los tiles de Bing Maps
+// para incrustar en el PDF (jsPDF no acepta mapas).
 function _loadTile(url) {
   return new Promise(function (resolve) {
     var img = new Image(); img.crossOrigin = 'anonymous';
@@ -2070,7 +2083,7 @@ function _loadTile(url) {
 }
 async function getSatImageDataUrl(lat, lng) {
   try {
-    var zoom = 18, grid = 3, TILE = 256, out = 540, half = (grid - 1) / 2;
+    var zoom = 19, grid = 3, TILE = 256, out = 540, half = (grid - 1) / 2;
     var n = Math.pow(2, zoom);
     var xf = ((lng + 180) / 360) * n;
     var latRad = lat * Math.PI / 180;
@@ -2082,8 +2095,10 @@ async function getSatImageDataUrl(lat, lng) {
     for (var dx = -half; dx <= half; dx++) {
       for (var dy = -half; dy <= half; dy++) {
         (function (dx, dy) {
-          // Esri usa orden z/y/x (invertido)
-          var url = 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/' + zoom + '/' + (yt + dy) + '/' + (xt + dx);
+          var tx = xt + dx, ty = yt + dy;
+          var q = _toQuadkey(tx, ty, zoom);
+          var sub = (tx + ty) & 3;
+          var url = 'https://ecn.t' + sub + '.tiles.virtualearth.net/tiles/a' + q + '.jpeg?g=1&key=' + BING_KEY;
           tasks.push(_loadTile(url).then(function (im) {
             if (im) ctx.drawImage(im, (dx + half) * TILE, (dy + half) * TILE);
           }));
