@@ -23,7 +23,7 @@ export async function satelliteDataUrl(
   lng: number,
   opts?: { zoom?: number; grid?: number; size?: number }
 ): Promise<string | null> {
-  const zoom = opts?.zoom ?? 18;            // MapTiler tiene imagen real bastante más profunda
+  const zoom = opts?.zoom ?? 17;            // zoom 17 = máx nativo de Esri (evita "Map data not yet available")
   const grid = opts?.grid ?? 3;             // 3x3 tiles alrededor del punto
   const out = opts?.size ?? 540;            // lado del recorte final (px)
   if (typeof document === 'undefined') return null;
