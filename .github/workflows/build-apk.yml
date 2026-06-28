@@ -80,21 +80,18 @@ jobs:
           rm -f "$RES/drawable/ic_launcher_background.xml"
           rm -rf "$RES/mipmap-anydpi-v26"
 
-      - name: Forzar debuggable=false en AndroidManifest
+      - name: Quitar debuggable hardcodeado del AndroidManifest
         run: |
           python3 - <<'EOF'
+          import re
           path = "inspector-app/android/app/src/main/AndroidManifest.xml"
           with open(path, encoding="utf-8") as f:
               m = f.read()
-          # Quitar cualquier android:debuggable="true" que Capacitor pueda haber puesto
-          import re
-          m = re.sub(r'android:debuggable="true"', 'android:debuggable="false"', m)
-          # Si no existe el atributo, lo agrega en la etiqueta <application
-          if 'android:debuggable' not in m:
-              m = m.replace('<application', '<application android:debuggable="false"', 1)
+          # Eliminar el atributo si existe (release es non-debuggable por defecto)
+          m = re.sub(r'\s*android:debuggable="[^"]*"', '', m)
           with open(path, "w", encoding="utf-8") as f:
               f.write(m)
-          print("debuggable=false OK")
+          print("debuggable attribute removed OK")
           EOF
 
       - name: Restaurar keystore de firma
