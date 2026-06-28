@@ -6,6 +6,7 @@ on:
     paths:
       - 'inspector-app/**'
       - 'web/public/actas-inspeccion/index.html'
+      - '.github/workflows/build-apk.yml'
   workflow_dispatch:
 
 jobs:
