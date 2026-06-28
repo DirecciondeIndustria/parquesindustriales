@@ -40,6 +40,23 @@ jobs:
           cp inspector-app/android-plugin/MockLocationPlugin.java "$JAVA_DIR/"
           cp inspector-app/android-plugin/MainActivity.java "$JAVA_DIR/"
 
+      - name: Generar íconos de app en todos los tamaños Android
+        run: |
+          ICON="inspector-app/icon-source.png"
+          RES="inspector-app/android/app/src/main/res"
+          # Fondo blanco para el ícono (la silueta es transparente)
+          convert "$ICON" -background white -flatten -resize 48x48   "$RES/mipmap-mdpi/ic_launcher.png"
+          convert "$ICON" -background white -flatten -resize 72x72   "$RES/mipmap-hdpi/ic_launcher.png"
+          convert "$ICON" -background white -flatten -resize 96x96   "$RES/mipmap-xhdpi/ic_launcher.png"
+          convert "$ICON" -background white -flatten -resize 144x144 "$RES/mipmap-xxhdpi/ic_launcher.png"
+          convert "$ICON" -background white -flatten -resize 192x192 "$RES/mipmap-xxxhdpi/ic_launcher.png"
+          # Íconos redondos (mismas imágenes)
+          cp "$RES/mipmap-mdpi/ic_launcher.png"    "$RES/mipmap-mdpi/ic_launcher_round.png"
+          cp "$RES/mipmap-hdpi/ic_launcher.png"    "$RES/mipmap-hdpi/ic_launcher_round.png"
+          cp "$RES/mipmap-xhdpi/ic_launcher.png"   "$RES/mipmap-xhdpi/ic_launcher_round.png"
+          cp "$RES/mipmap-xxhdpi/ic_launcher.png"  "$RES/mipmap-xxhdpi/ic_launcher_round.png"
+          cp "$RES/mipmap-xxxhdpi/ic_launcher.png" "$RES/mipmap-xxxhdpi/ic_launcher_round.png"
+
       - name: Sincronizar Capacitor con Android
         run: cd inspector-app && npx cap sync android
 
