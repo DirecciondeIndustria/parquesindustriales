@@ -2077,8 +2077,8 @@ async function getGeo() {
   if (window.Capacitor) {
     var fakeDetected = await checkFakeGPS();
     if (fakeDetected) {
-      alert('⚠️ GPS simulado detectado\n\nSe detectó una aplicación de ubicación falsa instalada en este dispositivo. No se puede registrar el acta.\n\nDesinstalá la app de GPS falso y volvé a intentarlo.');
-      return null;
+      alert('⚠️ GPS simulado detectado\n\nSe detectó una aplicación de ubicación falsa activa en este dispositivo. No se puede registrar el acta.\n\nDesactivá el GPS falso y volvé a intentarlo.');
+      return { blocked: true };
     }
     try {
       var Geo = window.Capacitor.Plugins.Geolocation;
@@ -2171,6 +2171,11 @@ async function doSaveActa() {
   document.getElementById('loadingText').textContent = 'Obteniendo ubicación…';
   try {
     const geo = editingId ? null : await getGeo();
+    // getGeo() retorna el sentinel {blocked:true} cuando detecta fake GPS → abortar
+    if (geo && geo.blocked) {
+      document.getElementById('loadingOverlay').classList.remove('show');
+      return;
+    }
     document.getElementById('loadingText').textContent = ONLINE ? 'Guardando en la base de datos…' : 'Guardando…';
     const d = collectFormData();
     d.agente1Id = (window.CURRENT_USER && CURRENT_USER.id) || null;
