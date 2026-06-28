@@ -2,11 +2,9 @@
   "appId": "ar.gob.chubut.sigpip.inspecciones",
   "appName": "SIGPIP Inspecciones",
   "webDir": "www",
-  "android": {
-    "buildOptions": {
-      "keystorePath": null,
-      "keystoreAlias": null
-    }
+  "server": {
+    "url": "https://sigpip.vercel.app/actas-inspeccion/",
+    "cleartext": false
   },
   "plugins": {
     "SplashScreen": {
