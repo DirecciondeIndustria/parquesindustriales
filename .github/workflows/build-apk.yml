@@ -54,11 +54,10 @@ jobs:
             convert "$ICON" -background white -flatten -resize "${px}x${px}" "$RES/mipmap-${dpi}/ic_launcher.png"
             cp "$RES/mipmap-${dpi}/ic_launcher.png" "$RES/mipmap-${dpi}/ic_launcher_round.png"
           done
-          # Ícono foreground para adaptive icons (Android 8+) — sin fondo, más grande
-          convert "$ICON" -background none -resize 432x432 -gravity center -extent 432x432 "$RES/drawable/ic_launcher_foreground.png" 2>/dev/null || \
-          convert "$ICON" -background none -resize 432x432 "$RES/drawable/ic_launcher_foreground.png"
-          # Fondo blanco para adaptive icon
-          convert -size 432x432 xc:white "$RES/drawable/ic_launcher_background.png"
+          # Eliminar íconos adaptativos (XML conflictúan con nuestros PNG)
+          rm -f "$RES/drawable/ic_launcher_foreground.xml"
+          rm -f "$RES/drawable/ic_launcher_background.xml"
+          rm -rf "$RES/mipmap-anydpi-v26"
 
       - name: Restaurar keystore de firma
         run: echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > inspector-app/android/sigpip.keystore
