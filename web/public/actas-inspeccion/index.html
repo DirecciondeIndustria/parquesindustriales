@@ -969,6 +969,26 @@ input.invalid,textarea.invalid,select.invalid{border-color:var(--danger)!importa
 </head>
 <body>
 
+<script>
+// Bloquear acceso desde navegador web — solo disponible como app nativa Android.
+if (!window.Capacitor) {
+  document.addEventListener('DOMContentLoaded', function () {
+    document.body.innerHTML = [
+      '<div style="min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;',
+      'background:#f8f5f0;font-family:sans-serif;padding:32px;text-align:center;">',
+      '<img src="/logo.png" style="width:80px;margin-bottom:24px;opacity:0.85">',
+      '<h2 style="color:#8f3416;margin:0 0 12px">SIGPIP Inspecciones</h2>',
+      '<p style="color:#555;max-width:320px;line-height:1.6;margin:0 0 24px">',
+      'Esta aplicación solo está disponible como <strong>app nativa para Android</strong>.',
+      '<br><br>Si sos inspector, descargá la app en tu celular.',
+      '</p>',
+      '<p style="color:#999;font-size:13px">Ministerio de Producción · Chubut</p>',
+      '</div>'
+    ].join('');
+  });
+}
+</script>
+
 <!-- HEADER -->
 <div id="appHeader">
   <div class="hdr-row">
