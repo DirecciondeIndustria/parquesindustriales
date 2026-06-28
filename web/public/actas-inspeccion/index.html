@@ -2060,6 +2060,33 @@ async function cancelarCierre() {
   if (window._coDesigId) { try { await supa.rpc('cancelar_cierre_acta', { p_id: window._coDesigId }); } catch (e) {} }
 }
 
+// Guarda/descarga un PDF. En la app nativa usa Filesystem + Share de Capacitor
+// porque el WebView no soporta el download del navegador.
+async function savePDF(doc, filename) {
+  if (window.Capacitor) {
+    try {
+      var base64 = doc.output('datauristring').split(',')[1];
+      var Filesystem = window.Capacitor.Plugins.Filesystem;
+      var Share = window.Capacitor.Plugins.Share;
+      var result = await Filesystem.writeFile({
+        path: filename,
+        data: base64,
+        directory: 'CACHE'
+      });
+      await Share.share({
+        title: filename,
+        url: result.uri,
+        dialogTitle: 'Guardar o compartir PDF'
+      });
+    } catch (e) {
+      console.error('Error al guardar PDF en app:', e);
+      alert('Error al guardar el PDF: ' + (e.message || e));
+    }
+  } else {
+    doc.save(filename);
+  }
+}
+
 // Detecta si hay una app de GPS falso instalada (solo en la app nativa Android).
 async function checkFakeGPS() {
   try {
@@ -2687,7 +2714,7 @@ async function renderPDF(d, returnBase64) {
     const idStr = `${String(d.actaNum || '000').toString().padStart(3, '0')}-${d.actaYear || '2026'}`;
     const safe = (d.razonSocial || 'empresa').replace(/[^a-z0-9]/gi, '_').slice(0, 30);
     if (returnBase64) return doc.output('datauristring');
-    doc.save(`Acta_Inspeccion_${idStr}_${safe}.pdf`);
+    await savePDF(doc, `Acta_Inspeccion_${idStr}_${safe}.pdf`);
   } catch (err) {
     console.error(err); alert('Error al generar el PDF: ' + err.message);
   } finally {
@@ -3163,7 +3190,7 @@ async function generarInforme() {
     });
 
     sf('normal', 7.5, C_GRAY); doc.text('Av. 9 de julio 280 Rawson – Chubut  /  Tel. 280 4482606/607', PW / 2, 287, { align: 'center' });
-    doc.save(`Informe_Inspecciones_${repYear === 'all' ? 'historico' : repYear}.pdf`);
+    await savePDF(doc, `Informe_Inspecciones_${repYear === 'all' ? 'historico' : repYear}.pdf`);
   } catch (e) { alert('Error al generar el informe: ' + e.message); }
   finally { document.getElementById('loadingOverlay').classList.remove('show'); }
 }
