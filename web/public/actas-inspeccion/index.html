@@ -2078,12 +2078,12 @@ async function getSatImageDataUrl(lat, lng) {
     var xt = Math.floor(xf), yt = Math.floor(yf);
     var big = document.createElement('canvas'); big.width = grid * TILE; big.height = grid * TILE;
     var ctx = big.getContext('2d'); if (!ctx) return null;
-    var MAPTILER_KEY = '4HDaNkXjAOehIAHuzDKG';
     var tasks = [];
     for (var dx = -half; dx <= half; dx++) {
       for (var dy = -half; dy <= half; dy++) {
         (function (dx, dy) {
-          var url = 'https://api.maptiler.com/tiles/satellite-v2/' + zoom + '/' + (xt + dx) + '/' + (yt + dy) + '.jpg?key=' + MAPTILER_KEY;
+          // Esri usa orden z/y/x (invertido)
+          var url = 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/' + zoom + '/' + (yt + dy) + '/' + (xt + dx);
           tasks.push(_loadTile(url).then(function (im) {
             if (im) ctx.drawImage(im, (dx + half) * TILE, (dy + half) * TILE);
           }));

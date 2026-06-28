@@ -1,14 +1,13 @@
-// Arma una imagen satelital estática (PNG/JPEG dataURL) a partir de los tiles
+// Arma una imagen satelital estática (JPEG dataURL) a partir de los tiles
 // de Esri World Imagery, centrada en un punto, con un pin marcando el lugar.
 // Sirve para incrustar en el PDF del acta (jsPDF.addImage no acepta mapas).
 // Los tiles de arcgisonline envían CORS (*), así que el canvas no queda
 // "tainted" y se puede exportar con toDataURL.
 
-import { MAPTILER_KEY } from './maptiler';
-
 const TILE = 256;
+// Esri usa orden {z}/{y}/{x} (invertido respecto a la mayoría)
 const tileUrl = (z: number, x: number, y: number) =>
-  `https://api.maptiler.com/tiles/satellite-v2/${z}/${x}/${y}.jpg?key=${MAPTILER_KEY}`;
+  `https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/${z}/${y}/${x}`;
 
 function loadImg(url: string): Promise<HTMLImageElement | null> {
   return new Promise((resolve) => {
