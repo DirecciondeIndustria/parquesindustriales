@@ -122,3 +122,49 @@ export function terrenoContaining(lat: number, lng: number, terrenos: Terreno[])
 export function ringToLatLng(ring: number[][]): [number, number][] {
   return ring.map((p) => [p[1], p[0]] as [number, number]);
 }
+
+// ── Vínculos manuales terreno ↔ acta / expediente ────────────────
+export interface TerrenoVinculo {
+  id: string;
+  terreno_id: string;
+  acta_id: string | null;
+  expediente_id: string | null;
+  nota: string | null;
+  created_at: string;
+  // joins opcionales
+  acta?: { id: string; numero: number | null; anio: number | null; razon_social: string | null; fecha: string | null } | null;
+  expediente?: { id: string; numero: string | null; tipo?: { nombre: string } | null; empresa?: { razon_social: string } | null } | null;
+}
+
+export async function fetchVinculos(terreno_id: string): Promise<TerrenoVinculo[]> {
+  const { data, error } = await supabase
+    .from('terreno_vinculos')
+    .select(`
+      id, terreno_id, acta_id, expediente_id, nota, created_at,
+      acta:actas_inspeccion(id, numero, anio, razon_social, fecha),
+      expediente:expedientes(id, numero, empresa:empresas(razon_social), tipo:tipos_tramite(nombre))
+    `)
+    .eq('terreno_id', terreno_id)
+    .order('created_at', { ascending: false });
+  if (error) throw error;
+  return (data ?? []) as TerrenoVinculo[];
+}
+
+export async function addVinculo(
+  terreno_id: string,
+  target: { acta_id?: string; expediente_id?: string },
+  nota?: string
+): Promise<void> {
+  const { error } = await supabase.from('terreno_vinculos').insert({
+    terreno_id,
+    acta_id: target.acta_id ?? null,
+    expediente_id: target.expediente_id ?? null,
+    nota: nota ?? null,
+  });
+  if (error) throw error;
+}
+
+export async function removeVinculo(id: string): Promise<void> {
+  const { error } = await supabase.from('terreno_vinculos').delete().eq('id', id);
+  if (error) throw error;
+}

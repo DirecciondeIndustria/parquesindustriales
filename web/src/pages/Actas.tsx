@@ -8,8 +8,10 @@ import { satelliteDataUrl } from '../lib/satelite';
 import { SAT_TILE_URL, SAT_ATTR, SAT_MAX_ZOOM, SAT_MAX_NATIVE } from '../lib/maptiler';
 import { usePermisos } from '../lib/permisos';
 import {
-  type Terreno, fetchTerrenos, parseKmz, saveTerrenos, deleteTerrenosByArchivo,
+  type Terreno, type TerrenoVinculo,
+  fetchTerrenos, parseKmz, saveTerrenos, deleteTerrenosByArchivo,
   terrenoContaining, ringToLatLng,
+  fetchVinculos, addVinculo, removeVinculo,
 } from '../lib/terrenos';
 
 // Acta completa cargada desde la app de inspecciones del celular.
@@ -318,10 +320,13 @@ function TerrenosManager({ terrenos }: { terrenos: Terreno[] }) {
 }
 
 // Mapa con TODOS los puntos de inspección (actas con coordenadas) + terrenos.
+// Clic en un polígono abre un panel lateral para vincular/desvincular actas y expedientes.
 function MapaActas({ actas, onSel, terrenos }: { actas: Acta[]; onSel: (a: Acta) => void; terrenos: Terreno[] }) {
   const el = useRef<HTMLDivElement>(null);
   const inst = useRef<any>(null);
   const [fallo, setFallo] = useState(false);
+  const [terrenoSel, setTerrenoSel] = useState<Terreno | null>(null);
+  const { puedeEditar } = usePermisos();
   const conGeo = actas.filter((a) => a.lat != null && a.lng != null);
 
   useEffect(() => {
@@ -331,13 +336,13 @@ function MapaActas({ actas, onSel, terrenos }: { actas: Acta[]; onSel: (a: Acta)
       if (inst.current) { inst.current.remove(); inst.current = null; }
       const map = L.map(el.current, { scrollWheelZoom: true });
       L.tileLayer(SAT_TILE_URL, { maxZoom: SAT_MAX_ZOOM, maxNativeZoom: SAT_MAX_NATIVE, attribution: SAT_ATTR }).addTo(map);
-      // Capa de terrenos (polígonos de los KMZ).
       terrenos.forEach((t) => {
         if (!t.geom?.coordinates) return;
         const poly = L.polygon(t.geom.coordinates.map(ringToLatLng), {
           color: '#ffd400', weight: 2, fillColor: '#ffd400', fillOpacity: 0.08,
         }).addTo(map);
         if (t.nombre) poly.bindTooltip(t.nombre, { sticky: true });
+        poly.on('click', () => setTerrenoSel(t));
       });
       const icon = L.divIcon({
         html: '<div style="font-size:24px;line-height:1;transform:translate(-2px,-10px)">📍</div>',
@@ -353,23 +358,236 @@ function MapaActas({ actas, onSel, terrenos }: { actas: Acta[]; onSel: (a: Acta)
       });
       if (pts.length === 1) map.setView(pts[0], 16);
       else if (pts.length > 1) map.fitBounds(pts, { padding: [40, 40], maxZoom: 16 });
-      else map.setView([-43.3, -65.3], 6); // Chubut por defecto
+      else map.setView([-43.3, -65.3], 6);
       inst.current = map;
       setTimeout(() => { try { map.invalidateSize(); } catch { /* noop */ } }, 150);
     }).catch(() => setFallo(true));
     return () => { cancelado = true; if (inst.current) { inst.current.remove(); inst.current = null; } };
   }, [actas, terrenos]);
 
-  if (fallo) {
-    return <p className="text-sm text-slate-400 bg-white rounded-xl shadow-sm p-4">No se pudo cargar el mapa. Probá recargar la página.</p>;
-  }
+  if (fallo) return <p className="text-sm text-slate-400 bg-white rounded-xl shadow-sm p-4">No se pudo cargar el mapa. Probá recargar la página.</p>;
   return (
     <div>
-      {conGeo.length === 0 && (
-        <p className="text-xs text-slate-400 mb-2">Ninguna de las actas mostradas tiene ubicación registrada todavía.</p>
-      )}
-      <div ref={el} className="h-[60vh] min-h-[360px] rounded-xl shadow-sm overflow-hidden ring-1 ring-slate-200 bg-slate-100" style={{ zIndex: 0 }} />
-      <p className="text-xs text-slate-400 mt-2">Pasá el cursor por un pin para ver el N° y la empresa. Hacé clic para abrir el acta.</p>
+      {conGeo.length === 0 && <p className="text-xs text-slate-400 mb-2">Ninguna de las actas mostradas tiene ubicación registrada todavía.</p>}
+      <div className="flex gap-3 items-start">
+        <div className="flex-1">
+          <div ref={el} className="h-[60vh] min-h-[360px] rounded-xl shadow-sm overflow-hidden ring-1 ring-slate-200 bg-slate-100" style={{ zIndex: 0 }} />
+          <p className="text-xs text-slate-400 mt-2">
+            Clic en un <span className="text-yellow-500 font-semibold">polígono</span> para vincular actas/expedientes. Clic en un 📍 para ver el acta.
+          </p>
+        </div>
+        {terrenoSel && (
+          <PanelVinculos
+            terreno={terrenoSel}
+            actas={actas}
+            puedeEditar={puedeEditar}
+            onCerrar={() => setTerrenoSel(null)}
+            onVerActa={onSel}
+          />
+        )}
+      </div>
+    </div>
+  );
+}
+
+// Panel lateral que aparece al hacer clic en un polígono del mapa.
+function PanelVinculos({
+  terreno, actas, puedeEditar, onCerrar, onVerActa,
+}: {
+  terreno: Terreno;
+  actas: Acta[];
+  puedeEditar: boolean;
+  onCerrar: () => void;
+  onVerActa: (a: Acta) => void;
+}) {
+  const qc = useQueryClient();
+  const [tab, setTab] = useState<'actas' | 'expedientes'>('actas');
+  const [busca, setBusca] = useState('');
+  const [guardando, setGuardando] = useState(false);
+  const [msg, setMsg] = useState('');
+
+  const { data: vinculos = [], isLoading } = useQuery({
+    queryKey: ['terreno_vinculos', terreno.id],
+    queryFn: () => fetchVinculos(terreno.id),
+  });
+
+  // Expedientes para el selector (solo los activos)
+  const { data: expedientes = [] } = useQuery({
+    queryKey: ['expedientes_sel'],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from('expedientes')
+        .select('id, numero, empresa:empresas(razon_social), tipo:tipos_tramite(nombre)')
+        .order('created_at', { ascending: false })
+        .limit(500);
+      return data ?? [];
+    },
+  });
+
+  const vinculosActas = vinculos.filter((v) => v.acta_id);
+  const vinculosExptes = vinculos.filter((v) => v.expediente_id);
+
+  // IDs ya vinculados para evitar duplicados
+  const actasVinculadas = new Set(vinculosActas.map((v) => v.acta_id));
+  const exptesVinculados = new Set(vinculosExptes.map((v) => v.expediente_id));
+
+  const q = busca.trim().toLowerCase();
+  const actasFiltradas = q
+    ? actas.filter((a) => [nro(a), a.razon_social, a.cuit, a.parque].filter(Boolean).join(' ').toLowerCase().includes(q))
+    : actas;
+  const exptesFiltrados = q
+    ? (expedientes as any[]).filter((e) => [e.numero, e.empresa?.razon_social, e.tipo?.nombre].filter(Boolean).join(' ').toLowerCase().includes(q))
+    : expedientes as any[];
+
+  async function vincularActa(acta_id: string) {
+    if (actasVinculadas.has(acta_id)) return;
+    setGuardando(true); setMsg('');
+    try {
+      await addVinculo(terreno.id, { acta_id });
+      await qc.invalidateQueries({ queryKey: ['terreno_vinculos', terreno.id] });
+      setMsg('✓ Vinculada');
+    } catch { setMsg('Error al vincular.'); }
+    setGuardando(false);
+  }
+
+  async function vincularExpte(expediente_id: string) {
+    if (exptesVinculados.has(expediente_id)) return;
+    setGuardando(true); setMsg('');
+    try {
+      await addVinculo(terreno.id, { expediente_id });
+      await qc.invalidateQueries({ queryKey: ['terreno_vinculos', terreno.id] });
+      setMsg('✓ Vinculado');
+    } catch { setMsg('Error al vincular.'); }
+    setGuardando(false);
+  }
+
+  async function desvincular(id: string) {
+    setGuardando(true);
+    try {
+      await removeVinculo(id);
+      await qc.invalidateQueries({ queryKey: ['terreno_vinculos', terreno.id] });
+    } catch { setMsg('Error al desvincular.'); }
+    setGuardando(false);
+  }
+
+  return (
+    <div className="w-80 shrink-0 bg-white rounded-xl shadow-sm ring-1 ring-slate-200 flex flex-col max-h-[60vh]">
+      {/* Header */}
+      <div className="flex items-start justify-between px-4 pt-4 pb-2 border-b border-slate-100">
+        <div>
+          <p className="text-xs text-slate-400 uppercase tracking-wide font-bold">Terreno</p>
+          <p className="text-sm font-semibold text-slate-800 leading-tight">{terreno.nombre || 'Sin nombre'}</p>
+          {terreno.archivo && <p className="text-xs text-slate-400">{terreno.archivo}</p>}
+        </div>
+        <button onClick={onCerrar} className="text-slate-400 hover:text-slate-600 text-lg leading-none mt-0.5">×</button>
+      </div>
+
+      {/* Tabs */}
+      <div className="flex border-b border-slate-100 text-sm">
+        <button
+          onClick={() => { setTab('actas'); setBusca(''); setMsg(''); }}
+          className={`flex-1 py-2 font-medium ${tab === 'actas' ? 'text-[var(--brand)] border-b-2 border-[var(--brand)]' : 'text-slate-500 hover:text-slate-700'}`}
+        >Actas {vinculosActas.length > 0 && <span className="ml-1 text-xs bg-[var(--brand)] text-white rounded-full px-1.5 py-0.5">{vinculosActas.length}</span>}</button>
+        <button
+          onClick={() => { setTab('expedientes'); setBusca(''); setMsg(''); }}
+          className={`flex-1 py-2 font-medium ${tab === 'expedientes' ? 'text-[var(--brand)] border-b-2 border-[var(--brand)]' : 'text-slate-500 hover:text-slate-700'}`}
+        >Expedientes {vinculosExptes.length > 0 && <span className="ml-1 text-xs bg-[var(--brand)] text-white rounded-full px-1.5 py-0.5">{vinculosExptes.length}</span>}</button>
+      </div>
+
+      {/* Vínculos existentes */}
+      <div className="overflow-y-auto flex-1 px-3 py-2 space-y-1">
+        {isLoading && <p className="text-xs text-slate-400 py-2">Cargando…</p>}
+
+        {tab === 'actas' && (
+          <>
+            {vinculosActas.length === 0 && !isLoading && (
+              <p className="text-xs text-slate-400 py-2">Sin actas vinculadas.</p>
+            )}
+            {vinculosActas.map((v) => (
+              <div key={v.id} className="flex items-center justify-between py-1.5 border-b border-slate-50 last:border-0">
+                <button
+                  className="text-left text-xs hover:text-[var(--brand)]"
+                  onClick={() => { const a = actas.find((x) => x.id === v.acta_id); if (a) onVerActa(a); }}
+                >
+                  <span className="font-semibold">N° {v.acta?.numero ?? '?'}/{v.acta?.anio ?? ''}</span>
+                  <span className="block text-slate-500 truncate max-w-[180px]">{v.acta?.razon_social ?? '—'}</span>
+                  {v.acta?.fecha && <span className="text-slate-400">{fmtFecha(v.acta.fecha)}</span>}
+                </button>
+                {puedeEditar && (
+                  <button onClick={() => desvincular(v.id)} disabled={guardando} className="text-red-400 hover:text-red-600 text-xs ml-2 shrink-0">×</button>
+                )}
+              </div>
+            ))}
+          </>
+        )}
+
+        {tab === 'expedientes' && (
+          <>
+            {vinculosExptes.length === 0 && !isLoading && (
+              <p className="text-xs text-slate-400 py-2">Sin expedientes vinculados.</p>
+            )}
+            {vinculosExptes.map((v) => (
+              <div key={v.id} className="flex items-center justify-between py-1.5 border-b border-slate-50 last:border-0">
+                <div className="text-xs">
+                  <span className="font-semibold">{v.expediente?.numero ?? '—'}</span>
+                  <span className="block text-slate-500 truncate max-w-[180px]">{(v.expediente as any)?.empresa?.razon_social ?? '—'}</span>
+                  {(v.expediente as any)?.tipo?.nombre && <span className="text-slate-400">{(v.expediente as any).tipo.nombre}</span>}
+                </div>
+                {puedeEditar && (
+                  <button onClick={() => desvincular(v.id)} disabled={guardando} className="text-red-400 hover:text-red-600 text-xs ml-2 shrink-0">×</button>
+                )}
+              </div>
+            ))}
+          </>
+        )}
+
+        {msg && <p className="text-xs text-emerald-600 py-1">{msg}</p>}
+
+        {/* Buscador para vincular */}
+        {puedeEditar && (
+          <div className="pt-2 border-t border-slate-100 mt-1">
+            <p className="text-xs text-slate-400 mb-1.5 font-medium">Vincular {tab === 'actas' ? 'acta' : 'expediente'}:</p>
+            <input
+              className="w-full text-xs border border-slate-200 rounded-lg px-2 py-1.5 mb-1.5 focus:outline-none focus:ring-1 focus:ring-[var(--brand)]"
+              placeholder={tab === 'actas' ? 'Buscar por N°, empresa…' : 'Buscar por número, empresa…'}
+              value={busca}
+              onChange={(e) => setBusca(e.target.value)}
+            />
+            <div className="max-h-40 overflow-y-auto space-y-0.5">
+              {tab === 'actas' && actasFiltradas.slice(0, 30).map((a) => {
+                const yaVinculada = actasVinculadas.has(a.id);
+                return (
+                  <button
+                    key={a.id}
+                    disabled={yaVinculada || guardando}
+                    onClick={() => vincularActa(a.id)}
+                    className={`w-full text-left text-xs rounded px-2 py-1.5 ${yaVinculada ? 'text-slate-300 cursor-default' : 'hover:bg-slate-50 text-slate-700'}`}
+                  >
+                    <span className="font-semibold text-[var(--brand)]">{nro(a)}</span>
+                    <span className="ml-1 text-slate-500 truncate">{a.razon_social ?? ''}</span>
+                    {yaVinculada && <span className="ml-1 text-slate-300">(ya vinculada)</span>}
+                  </button>
+                );
+              })}
+              {tab === 'expedientes' && exptesFiltrados.slice(0, 30).map((e: any) => {
+                const yaVinculado = exptesVinculados.has(e.id);
+                return (
+                  <button
+                    key={e.id}
+                    disabled={yaVinculado || guardando}
+                    onClick={() => vincularExpte(e.id)}
+                    className={`w-full text-left text-xs rounded px-2 py-1.5 ${yaVinculado ? 'text-slate-300 cursor-default' : 'hover:bg-slate-50 text-slate-700'}`}
+                  >
+                    <span className="font-semibold text-[var(--brand)]">{e.numero ?? '—'}</span>
+                    <span className="ml-1 text-slate-500 truncate">{e.empresa?.razon_social ?? ''}</span>
+                    {yaVinculado && <span className="ml-1 text-slate-300">(ya vinculado)</span>}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
