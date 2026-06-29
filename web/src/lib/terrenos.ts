@@ -147,7 +147,7 @@ export async function fetchVinculos(terreno_id: string): Promise<TerrenoVinculo[
     .eq('terreno_id', terreno_id)
     .order('created_at', { ascending: false });
   if (error) throw error;
-  return (data ?? []) as TerrenoVinculo[];
+  return (data ?? []) as unknown as TerrenoVinculo[];
 }
 
 export async function addVinculo(

@@ -8,7 +8,7 @@ import { satelliteDataUrl } from '../lib/satelite';
 import { SAT_TILE_URL, SAT_ATTR, SAT_MAX_ZOOM, SAT_MAX_NATIVE } from '../lib/maptiler';
 import { usePermisos } from '../lib/permisos';
 import {
-  type Terreno, type TerrenoVinculo,
+  type Terreno,
   fetchTerrenos, parseKmz, saveTerrenos, deleteTerrenosByArchivo,
   terrenoContaining, ringToLatLng,
   fetchVinculos, addVinculo, removeVinculo,
